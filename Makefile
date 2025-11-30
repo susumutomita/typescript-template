@@ -1,54 +1,62 @@
 .PHONY: install
 install:
-	npm install
+	bun install
+	cd packages/frontend && bun install
+	cd packages/backend && bun install
+
+.PHONY: install_ci
+install_ci:
+	bun install --frozen-lockfile
+	cd packages/frontend && bun install --frozen-lockfile
+	cd packages/backend && bun install --frozen-lockfile
 
 .PHONY: build
 build:
-	npm run build
+	bun run build
 
 .PHONY: clean
 clean:
-	npm run clean
+	bun run clean
 
 .PHONY: test
 test:
-	npm run test
+	bun run test
 
 .PHONY: test_coverage
 test_coverage:
-	npm run test:coverage
+	bun run test:coverage
 
 .PHONY: test_debug
 test_debug:
-	npm run test:debug
+	bun run test:debug
 
 .PHONY: test_watch
 test_watch:
-	npm run test:watch
+	bun run test:watch
 
 .PHONY: lint
 lint:
-	npm run lint
+	bun run lint
 
 .PHONY: lint_text
 lint_text:
-	npm run lint:text
+	bun run lint:text
 
 .PHONY: format
 format:
-	npm run format
+	bun run format
 
 .PHONY: format_check
 format_check:
-	npm run format:check
+	bun run format:check
 
-.PHONY: before_commit
-before_commit: test format lint
+.PHONY: before-commit
+before-commit: lint_text format_check test build
 
 .PHONY: run_frontend
 run_frontend:
-	npm run start:frontend
+	bun run start:frontend
 
 .PHONY: run_backend
 run_backend:
-	npm run start:backend
+	bun run start:backend
