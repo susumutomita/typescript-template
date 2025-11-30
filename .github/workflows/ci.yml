@@ -1,48 +1,47 @@
-name: CI
+name: ci
+
+# Supply Chain Security:
+# - All actions pinned to full SHA for immutable references
+# - Safe Chain runs before dependency installation
+# - Lifecycle scripts disabled during install
+# - Minimal permissions following principle of least privilege
+
+permissions:
+  contents: read
+  packages: read
+  actions: read
 
 on:
   push:
-  pull_request:
-    branches: ['main']
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_dispatch:
 
 jobs:
-  build-and-test:
+  ci:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - name: Check out the code
+        # actions/checkout v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
-          node-version: '16'
+          submodules: true
 
-      - name: Cache Node modules
-        uses: actions/cache@v3
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+      - name: Setup Bun
+        # oven-sh/setup-bun v2.0.2
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
 
-      - name: Install dependencies
-        run: make install
+      # Supply Chain Security: Setup safe-chain before dependency installation
+      - name: Setup safe-chain
+        run: |
+          bun add -g @aikidosec/safe-chain
+          safe-chain setup-ci
 
-      - name: Lint
-        run: make lint
+      # Supply Chain Security: Disable lifecycle scripts during install
+      - name: Install packages via packages.json
+        env:
+          npm_config_ignore_scripts: "true"
+          CI: "true"
+        run: make install_ci
 
-      - name: TextLint
-        run: make lint_text
-
-      - name: Check format
-        run: make format_check
-
-      - name: Build
-        run: make build
-
-      - name: Test
-        run: make test_coverage
+      - name: lint test format
+        run: |
+          make before-commit
