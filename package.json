@@ -22,7 +22,7 @@
     "start:backend": "cd packages/backend && bun run start"
   },
   "devDependencies": {
-    "husky": "^8.0.3",
+    "husky": "^9.1.7",
     "lint-staged": "^15.2.10",
     "oxfmt": "^0.16.0",
     "rimraf": "^5.0.5",
