@@ -25,7 +25,7 @@
     "husky": "^8.0.3",
     "lint-staged": "^15.2.10",
     "oxfmt": "^0.16.0",
-    "rimraf": "^5.0.5",
+    "rimraf": "^6.1.2",
     "textlint": "^15.4.1",
     "@textlint-ja/textlint-rule-preset-ai-writing": "^1.6.1",
     "textlint-rule-ja-no-abusage": "^3.0.0",
