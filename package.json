@@ -23,9 +23,9 @@
   },
   "devDependencies": {
     "husky": "^9.1.7",
-    "lint-staged": "^15.2.10",
+    "lint-staged": "^16.2.7",
     "oxfmt": "^0.16.0",
-    "rimraf": "^5.0.5",
+    "rimraf": "^6.1.2",
     "textlint": "^15.4.1",
     "@textlint-ja/textlint-rule-preset-ai-writing": "^1.6.1",
     "textlint-rule-ja-no-abusage": "^3.0.0",
@@ -34,7 +34,7 @@
     "textlint-rule-no-dropping-the-ra": "^3.0.0",
     "textlint-rule-prefer-tari-tari": "^1.0.3",
     "textlint-rule-preset-ja-spacing": "^2.2.0",
-    "textlint-rule-preset-ja-technical-writing": "^10.0.1",
+    "textlint-rule-preset-ja-technical-writing": "^12.0.2",
     "textlint-rule-spellcheck-tech-word": "^5.0.0"
   }
 }
