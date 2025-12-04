@@ -26,7 +26,7 @@
     "lint-staged": "^15.2.10",
     "prettier": "^3.3.0",
     "rimraf": "^5.0.5",
-    "textlint": "^14.0.5",
+    "textlint": "^15.4.1",
     "@textlint-ja/textlint-rule-preset-ai-writing": "^1.6.1",
     "textlint-rule-ja-no-abusage": "^3.0.0",
     "textlint-rule-ja-no-inappropriate-words": "^2.0.0",
