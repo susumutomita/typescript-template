@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "husky": "^8.0.3",
-    "lint-staged": "^15.2.10",
+    "lint-staged": "^16.2.7",
     "oxfmt": "^0.16.0",
     "rimraf": "^5.0.5",
     "textlint": "^15.4.1",
