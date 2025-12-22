@@ -24,7 +24,7 @@
   "devDependencies": {
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
-    "oxfmt": "^0.16.0",
+    "oxfmt": "^0.20.0",
     "rimraf": "^6.1.2",
     "textlint": "^15.4.1",
     "@textlint-ja/textlint-rule-preset-ai-writing": "^1.6.1",
