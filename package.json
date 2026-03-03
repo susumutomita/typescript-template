@@ -22,7 +22,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.2.7",
+    "lint-staged": "^16.3.2",
     "rimraf": "^6.1.2",
     "textlint": "^15.4.1",
     "@textlint-ja/textlint-rule-preset-ai-writing": "^1.6.1",
