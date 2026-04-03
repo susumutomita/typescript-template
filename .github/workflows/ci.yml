@@ -42,6 +42,6 @@ jobs:
           CI: "true"
         run: make install_ci
 
-      - name: lint test format
+      - name: lint typecheck test build
         run: |
           make before-commit
