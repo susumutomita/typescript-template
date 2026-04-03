@@ -24,23 +24,28 @@ test:
 
 .PHONY: test_coverage
 test_coverage:
-	bun run test:coverage
-
-.PHONY: test_debug
-test_debug:
-	bun run test:debug
+	cd packages/backend && bun test --coverage
+	cd packages/frontend && bun test --coverage
 
 .PHONY: test_watch
 test_watch:
-	bun run test:watch
+	cd packages/backend && bun test --watch
 
 .PHONY: lint
 lint:
 	bun run lint
 
+.PHONY: lint_fix
+lint_fix:
+	bun run lint:fix
+
 .PHONY: lint_text
 lint_text:
 	bun run lint:text
+
+.PHONY: typecheck
+typecheck:
+	bun run typecheck
 
 .PHONY: format
 format:
@@ -51,7 +56,7 @@ format_check:
 	bun run format:check
 
 .PHONY: before-commit
-before-commit: lint_text format_check test build
+before-commit: lint_text lint typecheck test build
 
 .PHONY: run_frontend
 run_frontend:

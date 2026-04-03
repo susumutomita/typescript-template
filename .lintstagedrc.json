@@ -1,0 +1,4 @@
+{
+  "*.{ts,tsx,js,jsx,json}": ["bunx biome check --write --no-errors-on-unmatched"],
+  "*.md": ["bunx textlint --fix"]
+}
