@@ -44,7 +44,6 @@ jobs:
         env:
           npm_config_ignore_scripts: "true"
           CI: "true"
-          SAFE_CHAIN_SKIP_MINIMUM_PACKAGE_AGE: "true"
         run: make install_ci
 
       - name: lint typecheck test build

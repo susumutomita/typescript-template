@@ -4,7 +4,7 @@ install:
 
 .PHONY: install_ci
 install_ci:
-	bun install --frozen-lockfile --safe-chain-skip-minimum-package-age
+	bun install --frozen-lockfile
 
 .PHONY: build
 build:
