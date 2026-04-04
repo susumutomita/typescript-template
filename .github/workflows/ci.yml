@@ -36,10 +36,15 @@ jobs:
           safe-chain setup-ci
 
       # Supply Chain Security: Disable lifecycle scripts during install
+      # Note: --safe-chain-skip-minimum-package-age is used because transitive
+      # dependencies (e.g. textlint -> @modelcontextprotocol/sdk -> hono) may
+      # include recently released packages that have not yet aged out of the
+      # safe-chain minimum age check.
       - name: Install packages via packages.json
         env:
           npm_config_ignore_scripts: "true"
           CI: "true"
+          SAFE_CHAIN_SKIP_MINIMUM_PACKAGE_AGE: "true"
         run: make install_ci
 
       - name: lint typecheck test build
