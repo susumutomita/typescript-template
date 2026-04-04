@@ -9,6 +9,16 @@
 - テスト: `bun test`
 - パッケージ操作: ni（`nr` = run, `ni` = install, `nlx` = exec）
 
+## 機能開発フロー（必須）
+
+新機能を実装するときは **必ず `/feature` スキルを使う**。直接実装を開始することを禁止する。
+
+```
+/feature
+```
+
+フロー: ヒアリング（AskUserQuestion）→ 仕様書承認 → Issue 作成 → 5 役割並列実装（PM / Designer / Developer / QA / User）→ 統合 → PR
+
 ## 実装原則
 
 - **TDD**: テストを先に書く（Red → Green → Refactor）。カバレッジ 100% を維持する。
