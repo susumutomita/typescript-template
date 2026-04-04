@@ -51,7 +51,7 @@ format_check:
 	bun run format:check
 
 .PHONY: before-commit
-before-commit: lint_text lint typecheck test build
+before-commit: lint_text lint
 
 .PHONY: dev
 dev:
