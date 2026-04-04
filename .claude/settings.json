@@ -8,6 +8,31 @@
             "type": "command",
             "command": "jq -r '.tool_input.file_path // empty' | { read -r f; [[ -n \"$f\" ]] && [[ \"$f\" =~ \\.test\\.tsx?$ ]] && bash \".claude/scripts/check-test-style.sh\" \"$f\"; } 2>/dev/null || true",
             "statusMessage": "テストスタイルを確認中..."
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; [[ -n \"$f\" ]] && [[ \"$f\" =~ \\.(ts|tsx|js|jsx)$ ]] && [[ ! \"$f\" =~ \\.test\\. ]] && bunx biome check --write \"$f\" 2>/dev/null; } || true",
+            "statusMessage": "Biome チェック中..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git diff --name-only HEAD 2>/dev/null | grep -qE '\\.(ts|tsx)$' && echo '{\"systemMessage\": \"TS ファイルが変更されています。nr lint && nr typecheck && nr test && nr build が全て通過していることを確認してください。\"}' || true"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ ! -f Plan.md ] && echo '{\"systemMessage\": \"Plan.md が見つかりません。実装を始める前に Plan.md を作成してください（CLAUDE.md を参照）。\"}' || true"
           }
         ]
       }
