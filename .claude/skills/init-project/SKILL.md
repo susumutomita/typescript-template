@@ -198,15 +198,16 @@ createRoot(root).render(
 
 ## 手順 5: 依存をインストールする
 
+ルートで `bun install` を実行するだけで全ワークスペースの依存が一括インストールされる。
+
 ```bash
-cd packages/backend && bun install
-cd packages/frontend && bun install  # フロントエンドあり
+bun install
 ```
 
 ## 手順 6: 動作確認する
 
 ```bash
-nr test       # bun test で全テストがパスすること
+nr test       # 全ワークスペースのテストが通ること
 nr typecheck  # 型エラーがないこと
 ```
 

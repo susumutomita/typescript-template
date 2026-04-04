@@ -16,7 +16,7 @@ TypeScript + Bun + Biome を使った Claude Code 向けモノレポテンプレ
 ## セットアップ
 
 ```bash
-# 依存をインストール
+# 依存をインストール（全ワークスペース一括）
 bun install
 
 # プロジェクトをスキャフォールド（初回のみ）
@@ -27,12 +27,13 @@ bun install
 ## コマンド
 
 ```bash
-make install      # 全パッケージの依存をインストール
-make lint         # biome check
-make format       # biome format
-make typecheck    # tsc --noEmit
-make test         # bun test
-make build        # ビルド
+make install        # 依存をインストール
+make dev            # 全パッケージを開発モードで起動
+make lint           # biome check
+make format         # biome format
+make typecheck      # tsc --noEmit（全ワークスペース）
+make test           # bun test（全ワークスペース）
+make build          # ビルド（全ワークスペース）
 make before-commit  # コミット前チェック（lint + typecheck + test + build）
 ```
 
