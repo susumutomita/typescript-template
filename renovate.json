@@ -1,0 +1,39 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separatePatchReleases"
+  ],
+  "timezone": "Asia/Tokyo",
+  "schedule": ["before 9am on Monday"],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Biome のメジャーアップデートは手動レビュー",
+      "matchPackageNames": ["@biomejs/biome"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "patch/minor は自動マージ",
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "squash"
+    },
+    {
+      "description": "textlint ルール群をまとめて更新",
+      "matchPackagePatterns": ["^textlint"],
+      "groupName": "textlint"
+    },
+    {
+      "description": "Bun ワークスペースパッケージ",
+      "matchFileNames": ["packages/*/package.json"],
+      "groupName": "workspace dependencies"
+    }
+  ],
+  "bun": {
+    "enabled": true
+  }
+}
