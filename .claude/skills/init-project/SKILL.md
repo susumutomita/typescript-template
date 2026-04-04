@@ -96,6 +96,32 @@ describe('アプリケーション', () => {
 });
 ```
 
+### Hurl による API テスト
+
+`package.json` の scripts に以下を追加する。
+
+```json
+"test:api": "hurl --test tests/api/*.hurl"
+```
+
+#### tests/api/health.hurl
+
+```
+GET http://localhost:3000/
+HTTP 200
+[Asserts]
+jsonpath "$.status" == "ok"
+```
+
+Hurl のインストール方法（README に追記する）。
+
+```bash
+# macOS
+brew install hurl
+# Linux
+cargo install hurl
+```
+
 ---
 
 ## 手順 3: packages/frontend をスキャフォールドする（フロントエンドあり）
@@ -113,6 +139,8 @@ describe('アプリケーション', () => {
     "preview": "vite preview",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -120,6 +148,7 @@ describe('アプリケーション', () => {
     "react-dom": "^18.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.44.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
@@ -127,6 +156,37 @@ describe('アプリケーション', () => {
     "vite": "^5.3.0"
   }
 }
+```
+
+### packages/frontend/playwright.config.ts
+
+```typescript
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  use: {
+    baseURL: 'http://localhost:5173',
+  },
+  webServer: {
+    command: 'bun run dev',
+    url: 'http://localhost:5173',
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+### packages/frontend/e2e/index.spec.ts
+
+```typescript
+import { expect, test } from '@playwright/test';
+
+test.describe('トップページ', () => {
+  test('ページが表示されるべき', async ({ page }) => {
+    await page.goto('/');
+    await expect(page).toHaveTitle(/App/);
+  });
+});
 ```
 
 ### packages/frontend/tsconfig.json
@@ -207,8 +267,10 @@ bun install
 ## 手順 6: 動作確認する
 
 ```bash
-nr test       # 全ワークスペースのテストが通ること
-nr typecheck  # 型エラーがないこと
+nr test           # 全ワークスペースのユニットテストが通ること
+nr typecheck      # 型エラーがないこと
+nr test:e2e       # フロントエンドの E2E テストが通ること（packages/frontend）
+nr test:api       # バックエンドの API テストが通ること（packages/backend、hurl が必要）
 ```
 
 ## 手順 7: ユーザーに完了報告する
