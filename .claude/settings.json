@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "git diff --name-only HEAD 2>/dev/null | grep -qE '\\.(ts|tsx)$' && echo '{\"systemMessage\": \"TS ファイルが変更されています。nr lint && nr typecheck && nr test && nr build が全て通過していることを確認してください。\"}' || true"
+            "command": "bash .claude/scripts/stop-gate-reminder.sh"
           }
         ]
       }
@@ -73,6 +73,10 @@
           {
             "type": "command",
             "command": "[ ! -f Plan.md ] && echo '{\"systemMessage\": \"Plan.md が見つかりません。実装を始める前に Plan.md を作成してください（CLAUDE.md を参照）。\"}' || true"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/follow-up-reminder.sh"
           }
         ]
       }

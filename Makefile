@@ -50,8 +50,12 @@ format:
 format_check:
 	bun run format:check
 
+.PHONY: architecture_harness
+architecture_harness:
+	bun scripts/architecture-harness.ts --staged --fail-on=error
+
 .PHONY: before-commit
-before-commit: lint_text lint
+before-commit: architecture_harness lint_text lint typecheck test build
 
 .PHONY: dev
 dev:
