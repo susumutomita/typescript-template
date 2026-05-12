@@ -1,5 +1,45 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "statusLine": {
+    "type": "command",
+    "command": "echo \"$(git branch --show-current 2>/dev/null || echo 'no-branch') | $(git diff --stat --shortstat 2>/dev/null | tail -1 | sed 's/^ //' || echo 'clean')\""
+  },
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Write(./.env)",
+      "Write(./.env.*)",
+      "Write(./secrets/**)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
+      "Edit(./secrets/**)"
+    ]
+  },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command // empty' | { read -r cmd; echo \"$cmd\" | grep -qE 'rm -rf|rm -r /|> /dev/sda|mkfs|dd if=|:\\(\\)\\{ :\\|:& \\};:' && { echo '危険なコマンドが検出されたため、安全のためブロックしました。' >&2; exit 2; }; exit 0; }",
+            "statusMessage": "危険なコマンドをチェック中..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; basename=\"$(basename \"$f\")\"; echo \"$basename\" | grep -qE '^(biome\\.json|\\.eslintrc.*|\\.prettierrc.*|renovate\\.json|\\.textlintrc)$' && { echo '設定ファイルの編集にはユーザーの承認が必要です。' >&2; exit 2; }; exit 0; }",
+            "statusMessage": "設定ファイルの編集をチェック中..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
@@ -22,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "git diff --name-only HEAD 2>/dev/null | grep -qE '\\.(ts|tsx)$' && echo '{\"systemMessage\": \"TS ファイルが変更されています。nr lint && nr typecheck && nr test && nr build が全て通過していることを確認してください。\"}' || true"
+            "command": "bash .claude/scripts/stop-gate-reminder.sh"
           }
         ]
       }
@@ -33,6 +73,21 @@
           {
             "type": "command",
             "command": "[ ! -f Plan.md ] && echo '{\"systemMessage\": \"Plan.md が見つかりません。実装を始める前に Plan.md を作成してください（CLAUDE.md を参照）。\"}' || true"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/follow-up-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown'); files=$(git diff --name-only HEAD 2>/dev/null | tr '\\n' ', ' | sed 's/, $//'); planinfo='なし'; if [ -f Plan.md ]; then planinfo=$(head -5 Plan.md | tr '\\n' ' '); fi; echo \"{\\\"systemMessage\\\": \\\"コンパクション前の状態: ブランチ=${branch}, 変更ファイル: ${files:-なし}. Plan.md: ${planinfo}\\\"}\"",
+            "statusMessage": "コンパクション前の状態を保存中..."
           }
         ]
       }

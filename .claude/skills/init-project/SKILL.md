@@ -13,6 +13,28 @@ description: プロジェクトを Bun + Hono（バックエンド）+ Vite + Re
 - リンター/フォーマッター: Biome（ルートの `biome.json` を共有）
 - テスト: `bun test`
 
+## 重要なルール
+
+**`test` スクリプトは必ず終了するコマンドを使うこと。**
+ウォッチモードで起動するコマンドは CI やエージェントをブロックする。
+
+| NG（ウォッチモード） | OK（終了する） |
+|---------------------|----------------|
+| `vitest` | `vitest run` |
+| `vitest watch` | `vitest run` |
+| `jest --watch` | `jest --watchAll=false` |
+
+ウォッチ用途は別スクリプトとして切り出す。
+
+```json
+{
+  "test": "bun test",
+  "test:watch": "bun test --watch"
+}
+```
+
+このテンプレートでは `bun test` を標準として使用する。`vitest` を採用する場合は必ず `vitest run` を `test` スクリプトに使うこと。
+
 ---
 
 ## 手順 1: ユーザーに確認する
@@ -38,6 +60,7 @@ description: プロジェクトを Bun + Hono（バックエンド）+ Vite + Re
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "test": "bun test",
+    "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
     "typecheck": "tsc --noEmit"
   },
@@ -138,6 +161,7 @@ cargo install hurl
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "bun test",
+    "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
