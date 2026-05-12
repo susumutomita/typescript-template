@@ -16,8 +16,11 @@ TypeScript + Bun + Biome を使った Claude Code 向けモノレポテンプレ
 ## セットアップ
 
 ```bash
-# 依存をインストール（全ワークスペース一括）
-bun install
+# 依存をインストール（lifecycle scripts 無効）
+make install
+
+# Git hooks を有効化（必要時のみ）
+make setup-hooks
 
 # プロジェクトをスキャフォールド（初回のみ）
 # Claude Code で以下を実行
@@ -27,7 +30,8 @@ bun install
 ## コマンド
 
 ```bash
-make install        # 依存をインストール
+make install        # 依存をインストール（ignore-scripts）
+make setup-hooks    # Husky hooks をセットアップ
 make dev            # 全パッケージを開発モードで起動
 make lint           # biome check
 make format         # biome format
