@@ -30,9 +30,13 @@ jobs:
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
 
       # Supply Chain Security: Setup safe-chain before dependency installation
+      # safe-chain 自体のサプライチェイン経由侵入を防ぐため、
+      # (1) --ignore-scripts を必ず付ける (Bun は npm_config_ignore_scripts を読まない)
+      # (2) version を明示固定する (latest を引かない)
+      # version を上げるときは ADR / 別 PR でレビューする。
       - name: Setup safe-chain
         run: |
-          bun add -g @aikidosec/safe-chain
+          bun add -g --ignore-scripts @aikidosec/safe-chain@1.5.3
           safe-chain setup-ci
 
       # Supply Chain Security: Disable lifecycle scripts during install
