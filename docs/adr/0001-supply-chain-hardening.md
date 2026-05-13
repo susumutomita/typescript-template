@@ -30,17 +30,26 @@
 以下を **すべて同時に** 既定値として固定する。一つでも欠けると上記攻撃チェーンの
 いずれかの段で詰められないため、多層化が前提。
 
-1. **install 既定値の強制**:
+1. **install 既定値の強制 (Bun 本体への第一線)**:
    `Makefile` の `install` / `install_ci` は常に `--ignore-scripts` を付ける。
+   公式 docs によれば **Bun は `.npmrc` の `ignore-scripts` も
+   `npm_config_ignore_scripts` 環境変数も読まず、設定経路は `bunfig.toml` のみ**
+   である。したがって Bun を叩くコマンド (CLI / Makefile / CI スクリプト)
+   側で毎回明示的にフラグを付けない限り、ignore は効かない。
    `make setup-hooks` を独立ターゲットにして husky の `prepare` だけを
    明示的に opt-in する。
-2. **設定ファイルでの二重化**:
-   - `bunfig.toml` で `trustedDependencies = []` を明示し、Bun が暗黙に
-     許可するパッケージをゼロにする。
-   - `.npmrc` で `ignore-scripts=true` / `engine-strict=true` /
-     `minimum-release-age=10080` (7 日) を設定する。`bun` 以外のクライアントに
-     誤って叩かれたときの保険。
-3. **architecture-harness の invariant 拡張** ([`scripts/architecture-harness.ts`](../../scripts/architecture-harness.ts)):
+2. **Bun デフォルト挙動の上書き (bunfig.toml)**:
+   Bun はデフォルトで「**top 500 npm パッケージ**」の lifecycle script を
+   暗黙に信頼して実行する。これは Wave 2 のように人気パッケージが乗っ取られた
+   ケースでは穴になりうる。`bunfig.toml` で `trustedDependencies = []` を
+   明示し、暗黙信頼ゼロに上書きする。
+3. **npm/pnpm/yarn 経由のフォールバック保険 (.npmrc)**:
+   `.npmrc` で `ignore-scripts=true` / `engine-strict=true` /
+   `minimum-release-age=10080` (7 日) を設定する。
+   **これは Bun には効かない**。開発者が誤って `npm install` / `pnpm install` /
+   `yarn install` を叩いたときや、`safe-chain` のような npm 互換クライアント
+   経由のセットアップで安全側に倒す保険。
+4. **architecture-harness の invariant 拡張** ([`scripts/architecture-harness.ts`](../../scripts/architecture-harness.ts)):
    - `INVARIANT_INSTALL_IGNORE_SCRIPTS`: Makefile/CI/Dockerfile で
      `bun|npm|pnpm|yarn install` が `--ignore-scripts` 無しで現れたら error。
    - `INVARIANT_NO_GIT_DEPENDENCY`: `package.json` の任意の依存セクションが
@@ -56,7 +65,7 @@
      / `pnpm-lock.yaml` に git/github 解決された依存が含まれていたら error。
    - `INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT`: 上記 `bunfig.toml` /
      `.npmrc` がリポジトリに存在し、推奨値が入っているか確認。
-4. **harness は既定ゲート (`make before-commit`) に組み込み済み** なので、
+5. **harness は既定ゲート (`make before-commit`) に組み込み済み** なので、
    コミット前と CI の両方で必ず走る。
 
 ローカル開発者が husky を使いたい場合は、`make install && make setup-hooks` の

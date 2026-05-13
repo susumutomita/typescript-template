@@ -67,8 +67,9 @@ make before-commit  # コミット前チェック（lint + typecheck + test + bu
 
 このテンプレートは Shai-Hulud 系（[Flatt Security の解説](https://blog.flatt.tech/entry/mini_shai_hulud_2nd)）のサプライチェイン攻撃を多層で防ぐデフォルト値を持つ。
 
-- `make install` / `make install_ci` は常に `--ignore-scripts` を付ける。husky の `prepare` は `make setup-hooks` で明示的に opt-in する。
-- `bunfig.toml` の `trustedDependencies = []`、`.npmrc` の `ignore-scripts=true` / `minimum-release-age=10080` で、CLI フラグの取りこぼしを設定ファイルで二重化する。
+- `make install` / `make install_ci` は常に `--ignore-scripts` を付ける。**Bun は `.npmrc` の `ignore-scripts` も `npm_config_ignore_scripts` 環境変数も読まない**（公式 docs では `bunfig.toml` のみが設定経路）ため、Bun を叩くコマンド側で毎回明示する必要がある。husky の `prepare` も巻き添えで止まるので `make setup-hooks` で明示的に opt-in する。
+- `bunfig.toml` の `trustedDependencies = []` で、Bun がデフォルトで信頼する「top 500 npm パッケージ」の lifecycle script もゼロにする。
+- `.npmrc` の `ignore-scripts=true` / `minimum-release-age=10080` は **npm / pnpm / yarn を誤って叩いたとき用のフォールバック保険**（Bun は読まない）。
 - `make before-commit` が走らせる `architecture-harness` が、Git URL 依存・lifecycle hook の濫用・IOC ファイル名・ロックファイル内の Git 解決を機械的に検出する（`INVARIANT_NO_GIT_DEPENDENCY` / `INVARIANT_LIFECYCLE_HOOK_SCOPED` / `INVARIANT_NO_KNOWN_IOC` / `INVARIANT_LOCKFILE_NO_GIT_RESOLUTION`）。
 - CI は `safe-chain` + 上記設定で重ねる。
 

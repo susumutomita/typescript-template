@@ -1,4 +1,11 @@
 .PHONY: install
+# --ignore-scripts: Mini Shai-Hulud 2nd (Flatt Security, 2026-05-12) を含む
+# lifecycle script 系サプライチェイン攻撃を一段目で封じるフラグ。
+# Bun は npm_config_ignore_scripts 環境変数も .npmrc の ignore-scripts も読まないため
+# (公式 docs では bunfig.toml のみが設定経路)、Bun を叩く側で毎回明示する必要がある。
+# Bun はデフォルトで「top 500 npm パッケージ」の lifecycle script を暗黙信頼する
+# 仕様もあるため、ここで全停止させる方が事故が少ない。Husky の prepare も巻き添えで
+# 止まるので、フックを使う場合は make setup-hooks で明示的に再有効化する。
 install:
 	bun install --ignore-scripts
 
@@ -7,6 +14,8 @@ install_ci:
 	bun install --frozen-lockfile --ignore-scripts
 
 .PHONY: setup-hooks
+# install 時に --ignore-scripts で止めた husky の prepare をここで明示的に走らせる。
+# `bun run prepare` は package.json の "prepare": "husky" を叩くため、Husky 一発で済む。
 setup-hooks:
 	bun run prepare
 
