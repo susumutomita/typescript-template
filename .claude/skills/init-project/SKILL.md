@@ -76,14 +76,12 @@ description: プロジェクトを Bun + Hono（バックエンド）+ Vite + Re
 
 ### packages/backend/tsconfig.json
 
+ルートの `tsconfig.base.json` (strict + noUncheckedIndexedAccess + verbatimModuleSyntax 等の共有設定) を必ず extends する。各 package で重複した strict 設定を書かない。
+
 ```json
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "skipLibCheck": true,
     "types": ["bun-types"]
   },
   "include": ["src/**/*.ts"]
@@ -215,15 +213,13 @@ test.describe('トップページ', () => {
 
 ### packages/frontend/tsconfig.json
 
+ルートの `tsconfig.base.json` を extends する。
+
 ```json
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "strict": true,
-    "skipLibCheck": true
+    "jsx": "react-jsx"
   },
   "include": ["src"]
 }
