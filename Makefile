@@ -1,58 +1,58 @@
 .PHONY: install
 install:
-  bun install --ignore-scripts
+	bun install --ignore-scripts
 
 .PHONY: install_ci
 install_ci:
-  bun install --frozen-lockfile --ignore-scripts
+	bun install --frozen-lockfile --ignore-scripts
 
 .PHONY: setup-hooks
 setup-hooks:
-  bun run prepare
+	bun run prepare
 
 .PHONY: build
 build:
-  bun run build
+	bun run build
 
 .PHONY: clean
 clean:
-  bun run clean
+	bun run clean
 
 .PHONY: test
 test:
-  bun run test
+	bun run test
 
 .PHONY: test_coverage
 test_coverage:
-  bun run test:coverage
+	bun run test:coverage
 
 .PHONY: test_watch
 test_watch:
-  bun run --filter '*' test --watch
+	bun run --filter '*' test --watch
 
 .PHONY: lint
 lint:
-  bun run lint
+	bun run lint
 
 .PHONY: lint_fix
 lint_fix:
-  bun run lint:fix
+	bun run lint:fix
 
 .PHONY: lint_text
 lint_text:
-  bun run lint:text
+	bun run lint:text
 
 .PHONY: typecheck
 typecheck:
-  bun run typecheck
+	bun run typecheck
 
 .PHONY: format
 format:
-  bun run format
+	bun run format
 
 .PHONY: format_check
 format_check:
-  bun run format:check
+	bun run format:check
 
 .PHONY: architecture_harness
 architecture_harness:
@@ -66,4 +66,4 @@ before-commit: architecture_harness lint_text lint
 
 .PHONY: dev
 dev:
-  bun run dev
+	bun run dev

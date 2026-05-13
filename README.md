@@ -63,6 +63,17 @@ make before-commit  # コミット前チェック（lint + typecheck + test + bu
 └── Makefile
 ```
 
+## サプライチェイン防御
+
+このテンプレートは Shai-Hulud 系（[Flatt Security の解説](https://blog.flatt.tech/entry/mini_shai_hulud_2nd)）のサプライチェイン攻撃を多層で防ぐデフォルト値を持つ。
+
+- `make install` / `make install_ci` は常に `--ignore-scripts` を付ける。husky の `prepare` は `make setup-hooks` で明示的に opt-in する。
+- `bunfig.toml` の `trustedDependencies = []`、`.npmrc` の `ignore-scripts=true` / `minimum-release-age=10080` で、CLI フラグの取りこぼしを設定ファイルで二重化する。
+- `make before-commit` が走らせる `architecture-harness` が、Git URL 依存・lifecycle hook の濫用・IOC ファイル名・ロックファイル内の Git 解決を機械的に検出する（`INVARIANT_NO_GIT_DEPENDENCY` / `INVARIANT_LIFECYCLE_HOOK_SCOPED` / `INVARIANT_NO_KNOWN_IOC` / `INVARIANT_LOCKFILE_NO_GIT_RESOLUTION`）。
+- CI は `safe-chain` + 上記設定で重ねる。
+
+設計判断の正本は [ADR-0001](./docs/adr/0001-supply-chain-hardening.md)、invariant 一覧は [docs/architecture/harness.md](./docs/architecture/harness.md) を参照。
+
 ## 開発ガイドライン
 
 [CLAUDE.md](./CLAUDE.md) を参照。

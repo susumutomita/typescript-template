@@ -14,6 +14,18 @@
   機能実装前に `Plan.md` を作成して目的・タスク・検証手順を記録する。実装中の進捗ログと振り返りも `Plan.md` に追記する。
 - `INVARIANT_FOLLOWUP_TRACKED`
   PR の主目的から外れた発見・改善はその場で実装せず、`/follow-up add` スキルで `.claude/state/follow-ups.jsonl` に記録し、PR 本文の "Known follow-ups" 節 (`/follow-up list-pr-body` で生成) に列挙する。スコープクリープを避け、別 PR で処理する。
+- `INVARIANT_INSTALL_IGNORE_SCRIPTS`
+  Makefile / CI / シェル / Dockerfile に書かれる `bun|npm|pnpm|yarn install` は必ず `--ignore-scripts` を付ける。Shai-Hulud 系の `prepare` 経由コード実行を一段目で封じる。
+- `INVARIANT_NO_GIT_DEPENDENCY`
+  `package.json` の `dependencies` / `devDependencies` / `optionalDependencies` / `peerDependencies` は npm レジストリ semver のみ。`git+`, `github:`, `gitlab:`, `http(s)://` 等の URL 参照は禁止。Mini Shai-Hulud 2nd は `optionalDependencies` + GitHub URL で侵入するため入口を塞ぐ。
+- `INVARIANT_LIFECYCLE_HOOK_SCOPED`
+  `package.json` の `preinstall` / `install` / `postinstall` / `prepare` 等の lifecycle hook は `husky` のような許可リスト内コマンドのみ。任意処理は別 script に分け、必要なときだけ手で実行する。
+- `INVARIANT_NO_KNOWN_IOC`
+  Shai-Hulud 系で観測された IOC (`tanstack_runner.js`, `router_init.js`, `gh-token-monitor.*`, `com.user.gh-token-monitor.plist`, `.claude/setup.mjs`, `.vscode/setup.mjs`, `codeql_analysis.yml` 等) のファイル名がコミットに含まれたら error で止める。
+- `INVARIANT_LOCKFILE_NO_GIT_RESOLUTION`
+  `bun.lock` / `package-lock.json` / `pnpm-lock.yaml` などのロックファイルに git / github で解決された依存が無いことを保証する。`bun.lockb` (バイナリ) は静的検査困難として警告。
+- `INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT`
+  `.npmrc` に `ignore-scripts=true`、`bunfig.toml` に `trustedDependencies = []` が入っていることを確認する。CLI フラグの取りこぼしや別クライアント (pnpm 等) からの誤実行を多層で防ぐ。詳細は [ADR-0001](../adr/0001-supply-chain-hardening.md) を参照。
 
 ## One-Pass Acceptance
 
