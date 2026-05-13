@@ -124,6 +124,168 @@ const RULES: Rule[] = [
       return findings;
     },
   },
+  {
+    id: 'INVARIANT_INSTALL_IGNORE_SCRIPTS',
+    description:
+      'パッケージインストールは --ignore-scripts 付きで叩く (Shai-Hulud 系 lifecycle 攻撃対策)',
+    scope: (p) =>
+      p === 'Makefile' ||
+      p.endsWith('.mk') ||
+      p.endsWith('.sh') ||
+      p.endsWith('.yml') ||
+      p.endsWith('.yaml') ||
+      p.endsWith('Dockerfile') ||
+      /(^|\/)Dockerfile(\.|$)/.test(p),
+    check: ({ path: filePath, content }) => {
+      const findings: Finding[] = [];
+      const lines = content.split('\n');
+      // (bun|npm|pnpm|yarn) install ... のうち --ignore-scripts を含まない行を検出。
+      // 例外: コメント行、`npm install -g typescript` のようなグローバルインストールはここでは
+      // 同じ扱い (危険なので明示的に --ignore-scripts を付けさせる)。
+      for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
+        const line = raw.replace(/#.*$/, '').trim();
+        if (!line) continue;
+        if (!/\b(bun|npm|pnpm|yarn)\s+install\b/.test(line)) continue;
+        // `bun install` 系で --ignore-scripts も無く trustedDependencies コメントも無い行は error
+        if (/--ignore-scripts\b/.test(line)) continue;
+        // `bun install <pkg> --frozen-lockfile` のような行も対象。
+        findings.push({
+          rule: 'INVARIANT_INSTALL_IGNORE_SCRIPTS',
+          severity: 'error',
+          file: filePath,
+          line: i + 1,
+          message:
+            'install コマンドに --ignore-scripts を付ける (lifecycle script 経由のサプライチェーン攻撃を封じる)',
+        });
+      }
+      return findings;
+    },
+  },
+  {
+    id: 'INVARIANT_NO_GIT_DEPENDENCY',
+    description:
+      'package.json の依存は npm レジストリ経由のみ (git/github/任意 URL を避ける)',
+    scope: (p) => p === 'package.json' || /\/package\.json$/.test(p),
+    check: ({ path: filePath, content }) => {
+      const findings: Finding[] = [];
+      let pkg: Record<string, unknown>;
+      try {
+        pkg = JSON.parse(content);
+      } catch {
+        return findings; // 壊れた JSON は別ルールで検出される
+      }
+      const sections = [
+        'dependencies',
+        'devDependencies',
+        'optionalDependencies',
+        'peerDependencies',
+      ] as const;
+      // version specifier の許可形 — registry-style のみ。
+      // semver ranges, ^x.y.z, ~x.y.z, x.y.z, *, latest, workspace:* など
+      const ALLOWED =
+        /^(workspace:|catalog:|npm:|file:packages\/|[\^~><=*]|\d|latest$|\*$)/;
+      for (const section of sections) {
+        const deps = pkg[section];
+        if (!deps || typeof deps !== 'object') continue;
+        for (const [name, spec] of Object.entries(
+          deps as Record<string, string>
+        )) {
+          if (typeof spec !== 'string') continue;
+          if (ALLOWED.test(spec)) continue;
+          // git+, github:, gitlab:, http(s)://, file: (workspace 例外は上で通している) など
+          if (
+            /^(git\+|git:|github:|gitlab:|bitbucket:|https?:|file:|link:)/.test(
+              spec
+            )
+          ) {
+            findings.push({
+              rule: 'INVARIANT_NO_GIT_DEPENDENCY',
+              severity: 'error',
+              file: filePath,
+              message: `${section}.${name} がレジストリ外参照 (${spec}) — Shai-Hulud 2nd 系は github URL の optionalDependencies で侵入する。レジストリ公開版を使う`,
+            });
+            continue;
+          }
+          // 想定外のフォーマットは警告止まりにとどめる (将来の表記ゆれを許容)
+          findings.push({
+            rule: 'INVARIANT_NO_GIT_DEPENDENCY',
+            severity: 'warning',
+            file: filePath,
+            message: `${section}.${name} の version 表記 (${spec}) を確認。レジストリ semver 以外は避ける`,
+          });
+        }
+      }
+      return findings;
+    },
+  },
+  {
+    id: 'INVARIANT_NO_KNOWN_IOC',
+    description:
+      'Shai-Hulud 系の既知 IOC (tanstack_runner.js / router_init.js / gh-token-monitor 等) をリポジトリに混入させない',
+    scope: (p) => {
+      // ファイル名で判定 (内容は読み込まない)。下の check は file path のみを見る。
+      const name = p.split('/').pop() ?? p;
+      return (
+        /^tanstack_runner\.(js|cjs|mjs|ts)$/.test(name) ||
+        /^router_init\.(js|cjs|mjs|ts)$/.test(name) ||
+        /^gh[-_]token[-_]monitor\.(plist|service|sh|js|ts)$/i.test(name) ||
+        /^com\.user\.gh-token-monitor\.plist$/.test(name) ||
+        /^codeql_analysis\.ya?ml$/.test(name) ||
+        // .claude/setup.mjs / .vscode/setup.mjs は Wave 2 が永続化に使うファイル
+        p === '.claude/setup.mjs' ||
+        p === '.vscode/setup.mjs'
+      );
+    },
+    check: ({ path: filePath }) => [
+      {
+        rule: 'INVARIANT_NO_KNOWN_IOC',
+        severity: 'error' as Severity,
+        file: filePath,
+        message:
+          'Shai-Hulud 2nd 等で観測された IOC (Indicator of Compromise) のファイル名と一致。リポジトリに混入していないか確認',
+      },
+    ],
+  },
+  {
+    id: 'INVARIANT_LIFECYCLE_HOOK_SCOPED',
+    description:
+      'package.json の lifecycle hook (preinstall/postinstall/prepare/postprepare) は許可リスト内のコマンドのみ',
+    scope: (p) => p === 'package.json' || /\/package\.json$/.test(p),
+    check: ({ path: filePath, content }) => {
+      const findings: Finding[] = [];
+      let pkg: Record<string, unknown>;
+      try {
+        pkg = JSON.parse(content);
+      } catch {
+        return findings;
+      }
+      const scripts = pkg.scripts;
+      if (!scripts || typeof scripts !== 'object') return findings;
+      const HOOKS = [
+        'preinstall',
+        'install',
+        'postinstall',
+        'prepare',
+        'postprepare',
+        'preprepare',
+      ];
+      // 許可: husky (hook setup), 空文字, "echo ..." 程度
+      const ALLOW = /^(husky( |$)|echo( |$)|: ?$|true$)/;
+      for (const hook of HOOKS) {
+        const cmd = (scripts as Record<string, string>)[hook];
+        if (typeof cmd !== 'string') continue;
+        if (ALLOW.test(cmd.trim())) continue;
+        findings.push({
+          rule: 'INVARIANT_LIFECYCLE_HOOK_SCOPED',
+          severity: 'error',
+          file: filePath,
+          message: `scripts.${hook} = "${cmd}" — lifecycle hook は許可リスト (husky 等) のみ。攻撃面を増やす任意処理は別 script に分けて手動実行する`,
+        });
+      }
+      return findings;
+    },
+  },
 ];
 
 // --- Repository-level invariants ---
@@ -199,6 +361,110 @@ const REPO_CHECKS: RepoCheck[] = [
           },
         ];
       }
+    },
+  },
+  {
+    id: 'INVARIANT_LOCKFILE_NO_GIT_RESOLUTION',
+    description:
+      'bun.lock / package-lock.json / pnpm-lock.yaml に github / git+ 解決された依存が無い',
+    check: async (root) => {
+      const findings: Finding[] = [];
+      const lockfiles = [
+        'bun.lock',
+        'bun.lockb',
+        'package-lock.json',
+        'pnpm-lock.yaml',
+        'yarn.lock',
+      ];
+      for (const name of lockfiles) {
+        const p = path.join(root, name);
+        try {
+          await stat(p);
+        } catch {
+          continue;
+        }
+        if (name === 'bun.lockb') {
+          // バイナリロックファイルは grep できないため、警告のみ
+          findings.push({
+            rule: 'INVARIANT_LOCKFILE_NO_GIT_RESOLUTION',
+            severity: 'warning',
+            file: name,
+            message:
+              'bun.lockb はバイナリ形式で静的検査が難しい。bunfig.toml saveTextLockfile=true で bun.lock (text) に切り替えるとサプライチェーン監査がやりやすい',
+          });
+          continue;
+        }
+        let content: string;
+        try {
+          content = await readFile(p, 'utf8');
+        } catch {
+          continue;
+        }
+        // git+ / github: / 任意の git URL で解決された行を検出
+        const suspicious =
+          /(git\+ssh:|git\+https?:|git:\/\/|github\.com\/[^/\s"']+\/[^/\s"']+(\.git)?#|resolved":\s*"git\+|resolution":\s*\{[^}]*"type":\s*"git")/i;
+        if (suspicious.test(content)) {
+          findings.push({
+            rule: 'INVARIANT_LOCKFILE_NO_GIT_RESOLUTION',
+            severity: 'error',
+            file: name,
+            message: `${name} に git/github で解決された依存がある。Shai-Hulud 2nd は optionalDependencies + github URL で侵入する。レジストリ公開版に切り替える`,
+          });
+        }
+      }
+      return findings;
+    },
+  },
+  {
+    id: 'INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT',
+    description:
+      '.npmrc と bunfig.toml に supply-chain 防御の既定値が入っている (ignore-scripts / trustedDependencies=[])',
+    check: async (root) => {
+      const findings: Finding[] = [];
+      const npmrcPath = path.join(root, '.npmrc');
+      try {
+        const content = await readFile(npmrcPath, 'utf8');
+        if (!/^\s*ignore-scripts\s*=\s*true\b/m.test(content)) {
+          findings.push({
+            rule: 'INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT',
+            severity: 'error',
+            file: '.npmrc',
+            message:
+              '.npmrc に ignore-scripts=true が無い (lifecycle script 経由のサプライチェーン攻撃を許す)',
+          });
+        }
+      } catch {
+        findings.push({
+          rule: 'INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT',
+          severity: 'error',
+          file: '.npmrc',
+          message:
+            '.npmrc が存在しない。npm/pnpm/yarn フォールバック時の防御として ignore-scripts=true を置く',
+        });
+      }
+      const bunfigPath = path.join(root, 'bunfig.toml');
+      try {
+        const content = await readFile(bunfigPath, 'utf8');
+        // trustedDependencies = [] (空配列) を明示している行を検出
+        if (!/trustedDependencies\s*=\s*\[\s*\]/m.test(content)) {
+          findings.push({
+            rule: 'INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT',
+            severity: 'warning',
+            file: 'bunfig.toml',
+            message:
+              'bunfig.toml に trustedDependencies = [] が無い。Bun が暗黙に許可するパッケージを明示的に空にする',
+          });
+        }
+      } catch {
+        findings.push({
+          rule: 'INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT',
+          severity: 'error',
+          file: 'bunfig.toml',
+          message:
+            'bunfig.toml が存在しない。Bun の trustedDependencies = [] を明示する正本として置く',
+        });
+      }
+      return findings;
     },
   },
 ];

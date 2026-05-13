@@ -1,10 +1,14 @@
 .PHONY: install
 install:
-	bun install
+	bun install --ignore-scripts
 
 .PHONY: install_ci
 install_ci:
-	bun install --frozen-lockfile
+	bun install --frozen-lockfile --ignore-scripts
+
+.PHONY: setup-hooks
+setup-hooks:
+	bun run prepare
 
 .PHONY: build
 build:

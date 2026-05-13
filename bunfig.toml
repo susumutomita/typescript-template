@@ -1,0 +1,18 @@
+# Bun configuration — supply-chain hardening
+#
+# 背景: 2025 年の "Mini Shai-Hulud 2nd" 攻撃のように、npm/Bun の lifecycle script や
+# optionalDependencies を悪用したサプライチェーン攻撃が常態化している。
+# このリポジトリは Makefile で `bun install --ignore-scripts` を強制し、
+# bunfig.toml でも明示的な trustedDependencies を空にしておく。
+#
+# 攻撃概要と invariant の正本: docs/architecture/harness.md
+# 設計判断: docs/adr/0001-supply-chain-hardening.md
+
+[install]
+# 既定で誰の lifecycle script も信用しない。husky の prepare は `make setup-hooks` で
+# 明示的に実行する。新たに追加したいパッケージがあれば、ADR で正当化したうえで
+# ここに名前を足す。
+trustedDependencies = []
+
+# 監査時の進捗をログに残し、後追いしやすくする
+saveTextLockfile = true
