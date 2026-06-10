@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { RULES, parseFrontmatter } from './architecture-harness';
+import { parseFrontmatter, RULES } from './architecture-harness';
 
 function rule(id: string) {
   const found = RULES.find((r) => r.id === id);

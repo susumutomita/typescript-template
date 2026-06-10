@@ -14,7 +14,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 type Severity = 'error' | 'warning';
@@ -796,6 +796,6 @@ if (import.meta.main) {
   });
 }
 
+export type { Finding, RepoCheck, Rule, Severity };
 // テスト (scripts/architecture-harness.test.ts) から invariant を直接検証するための export。
-export { RULES, REPO_CHECKS, parseFrontmatter };
-export type { Finding, Rule, RepoCheck, Severity };
+export { parseFrontmatter, REPO_CHECKS, RULES };
