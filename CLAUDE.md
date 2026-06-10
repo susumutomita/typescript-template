@@ -1,13 +1,10 @@
 # CLAUDE.md
 
-## ツールスタック
+共通の作業ガイド（ツールスタック、品質ゲート、作業順序、フォローアップ、制約、スキル authoring 規律、ADR）は AGENTS.md を正本とし、ここに import する。
 
-- ランタイム/パッケージマネージャー: Bun
-- バックエンド: Hono
-- フロントエンド: Vite + React
-- リンター/フォーマッター: Biome（設定は `biome.json`）
-- テスト: `bun test`
-- パッケージ操作: ni（`nr` = run, `ni` = install, `nlx` = exec）
+@AGENTS.md
+
+以下は Claude Code 固有の運用ルール。
 
 ## 機能開発フロー（必須）
 
@@ -38,68 +35,26 @@
 
 アーキテクチャ原則の正本は [`docs/architecture/harness.md`](./docs/architecture/harness.md) です。コード変更が invariant に違反する場合は、コードを直すのが第一手で、invariant 緩和は ADR で明示的に supersede します。
 
-### PR 作成前の必須ゲート（この順序で実行）
+PR 作成前の必須ゲート（順序・コマンドは AGENTS.md の「品質ゲート」を正本とする）。すべて通るまで未完了。失敗したら原因を特定してコードを修正する（設定ファイルや invariant を変更しない）。
 
-```bash
-bun scripts/architecture-harness.ts --staged --fail-on=error   # 1. invariant 違反検出
-make before-commit                                              # 2. lint / typecheck / test / build
-/review                                                         # 3. コードレビュー
-/security-review                                                # 4. セキュリティレビュー
-/simplify                                                       # 5. 重複・品質・効率の最終チェック
-```
+## プロジェクトスキル
 
-すべて通るまで未完了。失敗したら原因を特定してコードを修正する（設定ファイルや invariant を変更しない）。
+| スキル | 用途 |
+| --- | --- |
+| `/feature` | 新機能開発のオーケストレーション（必須経路） |
+| `/architecture-harness` | invariant の機械検証と `why <RULE_ID>` での意図表示 |
+| `/skill-audit` | スキル・フック・設定の監査。`.claude/` を変更したら必須 |
+| `/follow-up` | scope 外発見の記録・解消管理 |
+| `/init-project` | 初回スキャフォールド（ユーザー専用） |
+| `/frontend-design` | 高品質なフロントエンド実装 |
 
-### 作業順序
+スキルの書き方は AGENTS.md の「スキルの書き方」を正本とし、`.claude/rules/skill-authoring.md`（path-scoped rule）が `.claude/skills/` 配下の作業時に自動で読み込まれる。
 
-新規機能を追加する前に、以下を先に実施する。
+## AI 機能を実装するときのモデル指針
 
-1. **ドキュメント更新** — 変更に関連する `docs/`、ADR、`CLAUDE.md` を先に更新する。
-2. **リファクタリング** — 既存の技術的負債を先に解消する。
-3. **機能追加** — 上 2 つが終わってから着手する。
-
-## フォローアップタスクの扱い
-
-PR 作業中に scope 外の発見・改善・技術的負債を見つけたとき、その場で実装する誘惑がスコープクリープを生む。以下のルールで運用する。
-
-- その場で実装しない。**`/follow-up add <タイトル>`** で `.claude/state/follow-ups.jsonl` に記録する。
-- 同時に TodoWrite/TaskCreate で `[フォローアップ]` プレフィックス付きタスクも作る (今セッション内のリマインダー用)。
-- PR 作成時に **`/follow-up list-pr-body`** で出力される markdown を PR 本文の「Known follow-ups」節に貼る。
-- フォローアップは原則 **別 PR** で処理する。同 PR で前倒し処理するのは「現在の PR が CI 等で詰まる原因になっている」場合のみ許可。
-- 別 PR で解消したら **`/follow-up resolve <id> <pr-url>`** で記録する。
-
-セッション開始時に未処理フォローアップが残っていれば `.claude/scripts/follow-up-reminder.sh` (SessionStart hook) が件数を Claude に通知する。コミット直前の Stop hook (`.claude/scripts/stop-gate-reminder.sh`) もゲートとフォローアップの確認を促す。
-
-> 例: PR で SBT アダプタを直していたら旧 CDK スタックがデッドコードと判明 → `/follow-up add 旧 CDK 削除` で記録 → 同 PR では修正のみコミット → 別 PR で旧 CDK を消したら `/follow-up resolve <id> <pr-url>` で完了マーク。
-
-## ADR（Architecture Decision Records）
-
-設計判断は `docs/adr/` に ADR として記録する。
-
-- ファイル名: `NNNN-タイトル.md`（例: `0001-biome-を採用.md`）。
-- テンプレート: [`docs/adr/0000-template.md`](./docs/adr/0000-template.md)。
-- ステータス: Accepted / Superseded / Deprecated。
-- ADR は不変。変更する場合は新しい ADR で Supersede する。
-- リンタールールを追加したら対応する ADR を参照すること。
-- harness invariant の追加・緩和も ADR で記録する。
-
-## 品質ゲート（個別コマンド）
-
-タスク完了前に全て Green にする。`make before-commit` がこれらを順に実行する。
-
-```bash
-nr lint       # biome check
-nr typecheck  # tsc --noEmit
-nr test       # bun test
-nr build
-```
-
-## Git・CI ルール
-
-- Conventional Commits 形式でコミットする。
-- Issue は `#番号` ではなくフル URL か `Issue 番号` で記述する（自動クローズ防止）。
-- CI が Green になるまで次に進まない。
-- `gh pr diff` でセルフレビューしてから人間にレビューを依頼する。
+- Claude モデルを使う実装では最新世代を既定にする（2026-06 時点: `claude-fable-5` / `claude-opus-4-8` / `claude-sonnet-4-6` / `claude-haiku-4-5`）。
+- モデル ID をコードに直書きせず、設定または環境変数に切り出す。
+- 選定・移行の根拠はモデル世代が変わるたびに ADR で残す。
 
 ## ドキュメント規則
 
@@ -119,9 +74,4 @@ nr build
 
 ## 禁止事項
 
-- `rm` コマンド使用禁止（ファイル削除はユーザーに依頼するか `git rm` を使う）。
-- `npx` 使用禁止（`bunx` または `nlx` を使う。`scripts/architecture-harness.ts` で検出）。
-- モックデータ・スタブ API の使用禁止（`scripts/architecture-harness.ts` で検出）。
-- 設定ファイル（`biome.json` 等）の直接編集禁止（hook で deny される。コードを修正する）。
-- `it.only` / `describe.only` / `xit` / `xdescribe` をコミットに残さない（`scripts/architecture-harness.ts` で検出）。
-- コミット・PR での `#番号` 形式の Issue 引用禁止（自動クローズ防止）。
+禁止事項の正本は AGENTS.md の「制約 (破ったら即修正)」。重複定義による drift を避けるため、ここには再掲しない。

@@ -1,4 +1,11 @@
 .PHONY: install
+# --ignore-scripts: Mini Shai-Hulud 2nd (Flatt Security, 2026-05-12) を含む
+# lifecycle script 系サプライチェイン攻撃を一段目で封じるフラグ。
+# Bun は npm_config_ignore_scripts 環境変数も .npmrc の ignore-scripts も読まないため
+# (公式 docs では bunfig.toml のみが設定経路)、Bun を叩く側で毎回明示する必要がある。
+# Bun はデフォルトで「top 500 npm パッケージ」の lifecycle script を暗黙信頼する
+# 仕様もあるため、ここで全停止させる方が事故が少ない。Husky の prepare も巻き添えで
+# 止まるので、フックを使う場合は make setup-hooks で明示的に再有効化する。
 install:
 	bun install --ignore-scripts
 
@@ -7,6 +14,8 @@ install_ci:
 	bun install --frozen-lockfile --ignore-scripts
 
 .PHONY: setup-hooks
+# install 時に --ignore-scripts で止めた husky の prepare をここで明示的に走らせる。
+# `bun run prepare` は package.json の "prepare": "husky" を叩くため、Husky 一発で済む。
 setup-hooks:
 	bun run prepare
 
@@ -58,11 +67,17 @@ format_check:
 architecture_harness:
 	bun scripts/architecture-harness.ts --staged --fail-on=error
 
+.PHONY: harness_test
+# harness 自体の invariant 検出ロジックを検証する。workspace 構成に依存しないため
+# 既定ゲートに含める (workspace 側のテストは利用プロジェクトで before-commit に足す)。
+harness_test:
+	bun test scripts/
+
 .PHONY: before-commit
 # typecheck / test / build は各 workspace が該当 script を持つ前提に依存するため、本テンプレートの
 # 既定ゲートには含めない。利用プロジェクト側で `before-commit: ... typecheck test build` のように
 # 拡張するか、"no script ならスキップ" 型 runner を用意して取り込むこと。
-before-commit: architecture_harness lint_text lint
+before-commit: architecture_harness harness_test lint_text lint
 
 .PHONY: dev
 dev:

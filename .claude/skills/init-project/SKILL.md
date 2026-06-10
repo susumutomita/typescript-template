@@ -1,6 +1,7 @@
 ---
 name: init-project
-description: プロジェクトを Bun + Hono（バックエンド）+ Vite + React（フロントエンド）+ Biome でスキャフォールドする初期化スキル。
+description: プロジェクトを Bun + Hono（バックエンド）+ Vite + React（フロントエンド）+ Biome でスキャフォールドする初期化スキル。テンプレートを clone した直後の初回セットアップ時に、ユーザーが明示的に実行する。
+disable-model-invocation: true
 ---
 
 このスキルはプロジェクトの初期化を行う。以下の手順を順番に実行すること。
