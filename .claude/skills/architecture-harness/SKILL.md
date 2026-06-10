@@ -1,6 +1,8 @@
 ---
 name: architecture-harness
-description: docs/architecture/harness.md の invariant を機械的に検証するスキル。引数なしで `--staged --fail-on=error` (PR 直前用)、`full` で全件スキャン、`why <RULE_ID>` で invariant の意図を harness.md から引いて表示。コミット直前 / Stop hook から呼ばれる前提。
+description: docs/architecture/harness.md の invariant を機械的に検証するスキル。引数なしで `--staged --fail-on=error` (PR 直前用)、`full` で全件スキャン、`why <RULE_ID>` で invariant の意図を harness.md から引いて表示。コミット直前・Stop hook・PR 作成前ゲート・invariant 違反の調査に使う。
+argument-hint: "[full | why <RULE_ID>]"
+allowed-tools: Read, Grep, Bash(bun scripts/architecture-harness.ts:*), Bash(bun test scripts:*), Bash(awk:*)
 ---
 
 # architecture-harness Skill
@@ -25,7 +27,15 @@ bun scripts/architecture-harness.ts --fail-on=warning
 
 `--fail-on=warning` で warning 以上を拾う。新規 invariant を追加した直後や、大規模リファクタ後の総点検に使う。
 
-### 3. `why <RULE_ID>` — invariant の意図を表示
+### 3. `--skills-only` — スキル invariant だけを実行 (リポジトリ外の検査用)
+
+```bash
+bun scripts/architecture-harness.ts --skills-only --root=<dir> --fail-on=warning
+```
+
+`INVARIANT_SKILL_*` のみ実行し、bunfig.toml 等のリポジトリ前提 (REPO_CHECKS) をスキップする。サードパーティスキルの導入前検査 (`/skill-audit pre-install`) から使われる。
+
+### 4. `why <RULE_ID>` — invariant の意図を表示
 
 `docs/architecture/harness.md` から該当 invariant のセクションを抜き出して表示する。レビュー中に「この invariant は何を守ってるんだっけ?」となったときに使う。
 

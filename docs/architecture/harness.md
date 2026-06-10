@@ -15,7 +15,7 @@
 - `INVARIANT_FOLLOWUP_TRACKED`
   PR の主目的から外れた発見・改善はその場で実装せず、`/follow-up add` スキルで `.claude/state/follow-ups.jsonl` に記録し、PR 本文の "Known follow-ups" 節 (`/follow-up list-pr-body` で生成) に列挙する。スコープクリープを避け、別 PR で処理する。
 - `INVARIANT_INSTALL_IGNORE_SCRIPTS`
-  Makefile / CI / シェル / Dockerfile に書かれる `bun|npm|pnpm|yarn install` は必ず `--ignore-scripts` を付ける。Shai-Hulud 系の `prepare` 経由コード実行を一段目で封じる。
+  Makefile / CI / シェル / Dockerfile に書かれる `bun|npm|pnpm|yarn` の `install` / `add` / `i` / `ci` / `a` コマンドは必ず `--ignore-scripts` を付ける。`bun add` のような単発インストールも同じ侵入経路になるため対象に含める。Shai-Hulud 系の `prepare` 経由コード実行を一段目で封じる。
 - `INVARIANT_NO_GIT_DEPENDENCY`
   `package.json` の `dependencies` / `devDependencies` / `optionalDependencies` / `peerDependencies` は npm レジストリ semver のみ。`git+`, `github:`, `gitlab:`, `http(s)://` 等の URL 参照は禁止。Mini Shai-Hulud 2nd は `optionalDependencies` + GitHub URL で侵入するため入口を塞ぐ。
 - `INVARIANT_LIFECYCLE_HOOK_SCOPED`
@@ -25,7 +25,13 @@
 - `INVARIANT_LOCKFILE_NO_GIT_RESOLUTION`
   `bun.lock` / `package-lock.json` / `pnpm-lock.yaml` などのロックファイルに git / github で解決された依存が無いことを保証する。`bun.lockb` (バイナリ) は静的検査困難として警告。
 - `INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT`
-  `.npmrc` に `ignore-scripts=true`、`bunfig.toml` に `trustedDependencies = []` が入っていることを確認する。CLI フラグの取りこぼしや別クライアント (pnpm 等) からの誤実行を多層で防ぐ。詳細は [ADR-0001](../adr/0001-supply-chain-hardening.md) を参照。
+  `bunfig.toml` に `trustedDependencies = []` が明示されていることを確認する。Bun が暗黙信頼する「top 500 npm パッケージ」の lifecycle script をゼロにする。`.npmrc` は Bun が読まないため意図的に置かない (security theater の排除)。詳細は [ADR-0001](../adr/0001-supply-chain-hardening.md) を参照。
+- `INVARIANT_SKILL_FRONTMATTER_VALID`
+  `.claude/skills/<dir>/SKILL.md` は YAML frontmatter に `name` と `description` を持ち、`name` はディレクトリ名と一致させる (スキル名は公開 API。リネームは breaking change)。`description` は 50 文字以上 1024 文字以下で、トリガー語彙と「いつ使うか」を明示する。曖昧な description はスキルの誤発火 (trigger abuse) を招くため warning で検出する。詳細は [ADR-0002](../adr/0002-skill-audit-invariants.md) を参照。
+- `INVARIANT_SKILL_NO_HIDDEN_INSTRUCTIONS`
+  `.claude/` 配下の全ファイルに、ゼロ幅/双方向 Unicode 制御文字や 120 文字以上の base64 ブロックを混入させない (error)。markdown では HTML コメントも隠し prompt injection のチャネルになりうるため warning。スキル・フックはモデルのコンテキストに注入される成果物であり、サプライチェーンの一部として扱う。
+- `INVARIANT_SKILL_NO_EXFIL_EXEC`
+  `.claude/skills/`、`.claude/scripts/`、`.claude/rules/`、`.claude/settings.json` に、リモート取得をシェルへパイプする実行、base64 デコードの実行、`eval` や `sh -c` とコマンド置換でリモート取得結果を実行するパターンを置かない。サードパーティスキルの導入前検査は `/skill-audit` スキル (`--skills-only` モード) で行う。
 
 ## One-Pass Acceptance
 

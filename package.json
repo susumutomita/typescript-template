@@ -1,8 +1,24 @@
 {
   "name": "typescript-template",
   "version": "1.0.0",
+  "description": "TypeScript + Bun + Hono + Vite + React + Biome の Claude Code 向けモノレポテンプレート。サプライチェイン防御 (ADR-0001) と architecture-harness invariant が既定で入っている。",
   "author": "Susumu Tomita <oyster880@gmail.com>",
   "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/susumutomita/typescript-template.git"
+  },
+  "homepage": "https://github.com/susumutomita/typescript-template#readme",
+  "bugs": {
+    "url": "https://github.com/susumutomita/typescript-template/issues"
+  },
+  "packageManager": "bun@1.3.11",
+  "engines": {
+    "bun": ">=1.3.0",
+    "node": ">=22.0.0"
+  },
   "workspaces": [
     "packages/*"
   ],

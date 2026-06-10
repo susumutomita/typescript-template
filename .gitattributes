@@ -1,0 +1,27 @@
+# 改行コードを LF に正規化し、Windows でチェックアウトしても LF を保つ。
+# CRLF が混ざると Biome / textlint / shell スクリプトが期待外れの挙動になるため、
+# 開発者環境に依存しないよう Git レベルで固定する。
+* text=auto eol=lf
+
+# Lockfile は GitHub の "Linguist" 統計から外し、PR diff の "Load diff" を初期非表示にする。
+bun.lock          text linguist-generated=true linguist-language=JSON
+bun.lockb         binary linguist-generated=true
+package-lock.json text linguist-generated=true
+pnpm-lock.yaml    text linguist-generated=true
+yarn.lock         text linguist-generated=true
+
+# シェル / Makefile は LF 強制 (一部 Windows ツールが CRLF にしてしまうため)
+*.sh        text eol=lf
+Makefile    text eol=lf
+*.mk        text eol=lf
+
+# Windows でのバイナリ判定が必要なファイル
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.webp      binary
+*.pdf       binary
+*.woff      binary
+*.woff2     binary
