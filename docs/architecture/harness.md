@@ -25,7 +25,13 @@
 - `INVARIANT_LOCKFILE_NO_GIT_RESOLUTION`
   `bun.lock` / `package-lock.json` / `pnpm-lock.yaml` などのロックファイルに git / github で解決された依存が無いことを保証する。`bun.lockb` (バイナリ) は静的検査困難として警告。
 - `INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT`
-  `.npmrc` に `ignore-scripts=true`、`bunfig.toml` に `trustedDependencies = []` が入っていることを確認する。CLI フラグの取りこぼしや別クライアント (pnpm 等) からの誤実行を多層で防ぐ。詳細は [ADR-0001](../adr/0001-supply-chain-hardening.md) を参照。
+  `bunfig.toml` に `trustedDependencies = []` が明示されていることを確認する。Bun が暗黙信頼する「top 500 npm パッケージ」の lifecycle script をゼロにする。`.npmrc` は Bun が読まないため意図的に置かない (security theater の排除)。詳細は [ADR-0001](../adr/0001-supply-chain-hardening.md) を参照。
+- `INVARIANT_SKILL_FRONTMATTER_VALID`
+  `.claude/skills/<dir>/SKILL.md` は YAML frontmatter に `name` と `description` を持ち、`name` はディレクトリ名と一致させる (スキル名は公開 API。リネームは breaking change)。`description` は 50 文字以上 1024 文字以下で、トリガー語彙と「いつ使うか」を明示する。曖昧な description はスキルの誤発火 (trigger abuse) を招くため warning で検出する。詳細は [ADR-0002](../adr/0002-skill-audit-invariants.md) を参照。
+- `INVARIANT_SKILL_NO_HIDDEN_INSTRUCTIONS`
+  `.claude/` 配下の全ファイルに、ゼロ幅/双方向 Unicode 制御文字や 120 文字以上の base64 ブロックを混入させない (error)。markdown では HTML コメントも隠し prompt injection のチャネルになりうるため warning。スキル・フックはモデルのコンテキストに注入される成果物であり、サプライチェーンの一部として扱う。
+- `INVARIANT_SKILL_NO_EXFIL_EXEC`
+  `.claude/skills/`、`.claude/scripts/`、`.claude/rules/`、`.claude/settings.json` に、リモート取得をシェルへパイプする実行、base64 デコードの実行、`eval` や `sh -c` とコマンド置換でリモート取得結果を実行するパターンを置かない。サードパーティスキルの導入前検査は `/skill-audit` スキル (`--skills-only` モード) で行う。
 
 ## One-Pass Acceptance
 

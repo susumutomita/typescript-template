@@ -1,0 +1,23 @@
+# https://editorconfig.org
+# Biome は ts/js/json/jsonc/css の formatter を担当する。
+# 本ファイルは Biome の対象外 (md / sh / toml / yml / Dockerfile / Makefile 等) の
+# エディタ既定値を揃え、新規ファイル作成時の改行コード / インデント / 末尾空白を
+# 環境依存にしないための保険。
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Makefile は TAB 必須
+[Makefile]
+indent_style = tab
+
+# Markdown は trailing-whitespace に意味がある (改行) のでオフ
+[*.md]
+trim_trailing_whitespace = false
