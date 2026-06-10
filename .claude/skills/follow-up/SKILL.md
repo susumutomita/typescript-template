@@ -1,6 +1,7 @@
 ---
 name: follow-up
-description: PR の主目的から外れた発見・改善・技術的負債を「フォローアップ」として記録、列挙、解消管理するスキル。スコープクリープを防ぎ、scope 外の課題を別 PR で確実に処理する仕組み。引数なしで起動すると未処理一覧、`add <title>` で追加、`resolve <id> <pr-url>` で解消記録、`list-pr-body` で PR 本文に貼る markdown を出力。
+description: PR の主目的から外れた発見・改善・技術的負債を「フォローアップ」として記録、列挙、解消管理するスキル。スコープクリープを防ぎ、scope 外の課題を別 PR で確実に処理する仕組み。引数なしで起動すると未処理一覧、`add <title>` で追加、`resolve <id> <pr-url>` で解消記録、`list-pr-body` で PR 本文に貼る markdown を出力。作業中に scope 外の改善点・技術的負債・バグを見つけたら必ず使う。
+argument-hint: "[add <title> | resolve <id> <pr-url> | list-pr-body | purge-resolved]"
 ---
 
 # follow-up Skill
