@@ -15,7 +15,7 @@
 - `INVARIANT_FOLLOWUP_TRACKED`
   PR の主目的から外れた発見・改善はその場で実装せず、`/follow-up add` スキルで `.claude/state/follow-ups.jsonl` に記録し、PR 本文の "Known follow-ups" 節 (`/follow-up list-pr-body` で生成) に列挙する。スコープクリープを避け、別 PR で処理する。
 - `INVARIANT_INSTALL_IGNORE_SCRIPTS`
-  Makefile / CI / シェル / Dockerfile に書かれる `bun|npm|pnpm|yarn install` は必ず `--ignore-scripts` を付ける。Shai-Hulud 系の `prepare` 経由コード実行を一段目で封じる。
+  Makefile / CI / シェル / Dockerfile に書かれる `bun|npm|pnpm|yarn` の `install` / `add` / `i` / `ci` / `a` コマンドは必ず `--ignore-scripts` を付ける。`bun add` のような単発インストールも同じ侵入経路になるため対象に含める。Shai-Hulud 系の `prepare` 経由コード実行を一段目で封じる。
 - `INVARIANT_NO_GIT_DEPENDENCY`
   `package.json` の `dependencies` / `devDependencies` / `optionalDependencies` / `peerDependencies` は npm レジストリ semver のみ。`git+`, `github:`, `gitlab:`, `http(s)://` 等の URL 参照は禁止。Mini Shai-Hulud 2nd は `optionalDependencies` + GitHub URL で侵入するため入口を塞ぐ。
 - `INVARIANT_LIFECYCLE_HOOK_SCOPED`

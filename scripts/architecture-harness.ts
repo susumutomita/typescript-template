@@ -130,7 +130,7 @@ const RULES: Rule[] = [
   {
     id: 'INVARIANT_INSTALL_IGNORE_SCRIPTS',
     description:
-      'パッケージインストールは --ignore-scripts 付きで叩く (Shai-Hulud 系 lifecycle 攻撃対策)',
+      'パッケージインストール (install / add / ci) は --ignore-scripts 付きで叩く (Shai-Hulud 系 lifecycle 攻撃対策)',
     scope: (p) =>
       p === 'Makefile' ||
       p.endsWith('.mk') ||
@@ -142,24 +142,29 @@ const RULES: Rule[] = [
     check: ({ path: filePath, content }) => {
       const findings: Finding[] = [];
       const lines = content.split('\n');
-      // (bun|npm|pnpm|yarn) install ... のうち --ignore-scripts を含まない行を検出。
-      // 例外: コメント行、`npm install -g typescript` のようなグローバルインストールはここでは
-      // 同じ扱い (危険なので明示的に --ignore-scripts を付けさせる)。
+      // (bun|npm|pnpm|yarn) の install / add / ci 系コマンドのうち
+      // --ignore-scripts を含まない行を検出。
+      // - bun add / bun install / bun i / bun ci
+      // - npm install / npm i / npm ci / npm add
+      // - pnpm add / pnpm install / pnpm i / pnpm ci
+      // - yarn add / yarn install
+      // パッケージを取り込むコマンドはすべて lifecycle script 経由の侵入経路になり得るので、
+      // CLI フラグで明示的に止める。例外: コメント行、`npm install -g typescript` のような
+      // グローバルインストールも同じ扱い (危険なので明示的に --ignore-scripts を付けさせる)。
+      const INSTALL_VERB = /\b(bun|npm|pnpm|yarn)\s+(install|add|i|ci|a)\b/;
       for (let i = 0; i < lines.length; i++) {
         const raw = lines[i];
         const line = raw.replace(/#.*$/, '').trim();
         if (!line) continue;
-        if (!/\b(bun|npm|pnpm|yarn)\s+install\b/.test(line)) continue;
-        // `bun install` 系で --ignore-scripts も無く trustedDependencies コメントも無い行は error
+        if (!INSTALL_VERB.test(line)) continue;
         if (/--ignore-scripts\b/.test(line)) continue;
-        // `bun install <pkg> --frozen-lockfile` のような行も対象。
         findings.push({
           rule: 'INVARIANT_INSTALL_IGNORE_SCRIPTS',
           severity: 'error',
           file: filePath,
           line: i + 1,
           message:
-            'install コマンドに --ignore-scripts を付ける (lifecycle script 経由のサプライチェーン攻撃を封じる)',
+            'install / add / ci 系コマンドに --ignore-scripts を付ける (lifecycle script 経由のサプライチェーン攻撃を封じる)',
         });
       }
       return findings;
