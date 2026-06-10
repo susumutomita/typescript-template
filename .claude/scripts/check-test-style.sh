@@ -26,14 +26,12 @@ if grep -qE '\.(only)\(' "$FILE"; then
   ISSUES+=(".only が使われています。コミット前に削除してください。")
 fi
 
-# 日本語タイトルチェック（describe または it/test に日本語が含まれるか）
-# 日本語: ひらがな ぁ-ん、カタカナ ァ-ヶ、漢字 一-龠
+# 日本語タイトルチェック（describe または it/test の行に非 ASCII 文字が含まれるか）
+# GNU grep の -P や bash 4.2+ の $'\u3041' は macOS (BSD grep / bash 3.2) で動かないため、
+# C ロケールで「ASCII 印字・空白以外のバイト」を検出する方式にする (UTF-8 の日本語は必ず該当する)。
 if grep -qE 'describe\(|it\(|test\(' "$FILE"; then
-  if ! grep -qP '[\x{3041}-\x{3096}\x{30A1}-\x{30F6}\x{4E00}-\x{9FFF}]' "$FILE" 2>/dev/null; then
-    # Perl が使えない環境向けフォールバック
-    if ! grep -q $'[\u3041-\u30f6\u4e00-\u9fff]' "$FILE" 2>/dev/null; then
-      ISSUES+=("describe/it のタイトルに日本語が見当たりません。BDD スタイルで日本語タイトルを使ってください。")
-    fi
+  if ! grep -E 'describe\(|it\(|test\(' "$FILE" | LC_ALL=C grep -q '[^[:print:][:space:]]'; then
+    ISSUES+=("describe/it のタイトルに日本語が見当たりません。BDD スタイルで日本語タイトルを使ってください。")
   fi
 fi
 

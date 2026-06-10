@@ -30,6 +30,9 @@ interface Finding {
 interface Rule {
   id: string;
   description: string;
+  // リポジトリ前提 (REPO_CHECKS) なしで単体スキャン可能なルール。
+  // --skills-only モードではこのフラグを持つルールだけが実行される。
+  standalone?: boolean;
   // ファイル単位のチェック (false を返したら skip)
   scope: (filePath: string) => boolean;
   check: (file: { path: string; content: string }) => Finding[];
@@ -286,7 +289,198 @@ const RULES: Rule[] = [
       return findings;
     },
   },
+  {
+    id: 'INVARIANT_SKILL_FRONTMATTER_VALID',
+    description:
+      'SKILL.md は frontmatter に name/description を持ち、name はディレクトリ名と一致する',
+    standalone: true,
+    scope: (p) => /^\.claude\/skills\/[^/]+\/SKILL\.md$/.test(p),
+    check: ({ path: filePath, content }) => {
+      const findings: Finding[] = [];
+      const flag = (
+        message: string,
+        severity: Severity = 'error',
+        line?: number
+      ) =>
+        findings.push({
+          rule: 'INVARIANT_SKILL_FRONTMATTER_VALID',
+          severity,
+          file: filePath,
+          line,
+          message,
+        });
+      const dirName = filePath.split('/')[2];
+      const fm = parseFrontmatter(content);
+      if (!fm) {
+        flag(
+          'SKILL.md に YAML frontmatter (--- で囲まれた name/description) が無い、または YAML として読めない',
+          'error',
+          1
+        );
+        return findings;
+      }
+      const name = fm.name?.trim();
+      if (!name) {
+        flag('frontmatter に name が無い');
+      } else if (name !== dirName) {
+        flag(
+          `frontmatter の name (${name}) がディレクトリ名 (${dirName}) と一致しない。スキル名は公開 API として扱い、ディレクトリと同期させる`
+        );
+      }
+      const description = fm.description?.trim();
+      if (!description) {
+        flag('frontmatter に description が無い');
+      } else {
+        if (description.length < 50) {
+          flag(
+            `description が ${description.length} 文字と短い。発火条件が曖昧になるため、対象・サブコマンド・「いつ使うか」をトリガー語彙として 50 文字以上で書く`,
+            'warning'
+          );
+        }
+        if (description.length > 1024) {
+          flag(
+            `description が ${description.length} 文字。Claude Code の上限 (1024 文字) を超えている`
+          );
+        }
+      }
+      return findings;
+    },
+  },
+  {
+    id: 'INVARIANT_SKILL_NO_HIDDEN_INSTRUCTIONS',
+    description:
+      '.claude 配下のファイルに隠し指示チャネル (不可視 Unicode / base64 ブロック / HTML コメント) を置かない',
+    standalone: true,
+    scope: (p) => p.startsWith('.claude/'),
+    check: ({ path: filePath, content }) => {
+      const findings: Finding[] = [];
+      const isMarkdown = filePath.endsWith('.md');
+      // 隠し指示チャネルの検出テーブル。新しいチャネルは 1 エントリ追加で足せる。
+      const CHANNELS: Array<{
+        pattern: RegExp;
+        severity: Severity;
+        mdOnly?: boolean;
+        message: string;
+      }> = [
+        {
+          // ゼロ幅・双方向制御文字 (prompt injection の隠蔽に使われる)
+          pattern:
+            /[\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/,
+          severity: 'error',
+          message:
+            'ゼロ幅/双方向 Unicode 制御文字を検出。不可視文字に隠した指示は prompt injection の典型チャネル',
+        },
+        {
+          // ZWNJ/ZWJ は複合絵文字やペルシア語等で正当に使われるため warning 止まり
+          pattern: /[\u200C\u200D]/,
+          severity: 'warning',
+          message:
+            'ZWNJ/ZWJ (U+200C/U+200D) を検出。複合絵文字等の正当な用途もあるが隠し指示にも使われるため、意図を確認する',
+        },
+        {
+          // 連続 120 文字以上の base64 風ブロック (デコードして実行する系の payload)
+          pattern: /[A-Za-z0-9+/]{120,}={0,2}/,
+          severity: 'error',
+          message:
+            '120 文字以上の base64 風ブロックを検出。デコード実行型 payload の混入が疑われるため、内容を平文で書くか外部ファイルに逃がす',
+        },
+        {
+          // HTML コメントは markdown のみ対象 (他形式では正当な構文に現れうる)
+          pattern: /<!--/,
+          severity: 'warning',
+          mdOnly: true,
+          message:
+            'HTML コメントを検出。モデルには見えるが人間のレビューでは見落としやすい隠し指示チャネルになるため、平文で書く',
+        },
+      ];
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        for (const channel of CHANNELS) {
+          if (channel.mdOnly && !isMarkdown) continue;
+          if (!channel.pattern.test(lines[i])) continue;
+          findings.push({
+            rule: 'INVARIANT_SKILL_NO_HIDDEN_INSTRUCTIONS',
+            severity: channel.severity,
+            file: filePath,
+            line: i + 1,
+            message: channel.message,
+          });
+        }
+      }
+      return findings;
+    },
+  },
+  {
+    id: 'INVARIANT_SKILL_NO_EXFIL_EXEC',
+    description:
+      'スキル・フックにリモート取得のシェルパイプ実行や base64 デコード実行を置かない',
+    standalone: true,
+    scope: (p) =>
+      p.startsWith('.claude/skills/') ||
+      p.startsWith('.claude/scripts/') ||
+      p.startsWith('.claude/rules/') ||
+      p === '.claude/settings.json',
+    check: ({ path: filePath, content }) => {
+      const findings: Finding[] = [];
+      // 注意: このファイル群に検出対象パターンをリテラルで書くと自己検出する。
+      // ドキュメントやスキル本文では「リモート取得のシェルパイプ実行」のように言い換える。
+      // 既知の限界 (行単位の静的検査): プロセス置換 sh <(...)、バッククォート置換、
+      // shell 以外への パイプ (python 等)、\ による行継続は検出しない。
+      // curl/wget の結果をシェルに流す (リモートコード実行)。sudo/env 経由も拾う
+      const FETCH_PIPE_SHELL =
+        /\b(curl|wget)\b[^|;&\n]*\|\s*((sudo|env)\s+)*\w*sh\b/;
+      // base64 デコードを実行系に流す
+      const BASE64_EXEC =
+        /\bbase64\s+(-d|-D|--decode)\b[^|;&\n]*\|\s*((sudo|env)\s+)*(\w*sh|node|bun)\b/;
+      // eval "$(curl ...)" / bash -c "$(curl ...)" 型
+      const EVAL_REMOTE =
+        /\b(eval|\w*sh\s+(-\w+\s+)*-c)\s+["']?\$\(\s*(curl|wget)\b/;
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (
+          FETCH_PIPE_SHELL.test(line) ||
+          BASE64_EXEC.test(line) ||
+          EVAL_REMOTE.test(line)
+        ) {
+          findings.push({
+            rule: 'INVARIANT_SKILL_NO_EXFIL_EXEC',
+            severity: 'error',
+            file: filePath,
+            line: i + 1,
+            message:
+              'リモート取得・base64 デコードをシェルに流す実行パターンを検出。スキル/フック経由のコード実行はサプライチェーン攻撃の入口になるため、取得と実行を分離してレビュー可能にする',
+          });
+        }
+      }
+      return findings;
+    },
+  },
 ];
+
+// frontmatter (--- で囲まれた YAML) を Bun ランタイム組み込みの YAML パーサで読む。
+// 依存ゼロ方針 (ADR-0001) は維持 — Bun.YAML はランタイム同梱でありライブラリ追加ではない。
+function parseFrontmatter(content: string): Record<string, string> | null {
+  const lines = content.split('\n');
+  if (lines[0]?.trim() !== '---') return null;
+  const end = lines.findIndex((line, i) => i > 0 && line.trim() === '---');
+  if (end === -1) return null; // 終端の --- が無い
+  let parsed: unknown;
+  try {
+    parsed = Bun.YAML.parse(lines.slice(1, end).join('\n'));
+  } catch {
+    return null; // YAML として壊れている
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return null;
+  }
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (value == null || typeof value === 'object') continue;
+    out[key] = String(value);
+  }
+  return out;
+}
 
 // --- Repository-level invariants ---
 
@@ -497,12 +691,21 @@ interface CliOptions {
   root: string;
   staged: boolean;
   failOn?: Severity;
+  // standalone フラグ付きルールのみ実行し、REPO_CHECKS をスキップする。
+  // リポジトリ外に置いたサードパーティスキル候補を /skill-audit pre-install で
+  // 検査する用途 (bunfig.toml 等のリポジトリ前提を要求しない)。
+  skillsOnly: boolean;
 }
 
 function parseArgs(argv: string[]): CliOptions {
-  const opts: CliOptions = { root: process.cwd(), staged: false };
+  const opts: CliOptions = {
+    root: process.cwd(),
+    staged: false,
+    skillsOnly: false,
+  };
   for (const arg of argv) {
     if (arg === '--staged') opts.staged = true;
+    else if (arg === '--skills-only') opts.skillsOnly = true;
     else if (arg.startsWith('--root=')) opts.root = path.resolve(arg.slice(7));
     else if (arg.startsWith('--fail-on=')) {
       const v = arg.slice(10);
@@ -542,18 +745,23 @@ async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
   const findings: Finding[] = [];
 
-  // 1) repository-level checks (常に走らせる)
-  for (const r of REPO_CHECKS) {
-    findings.push(...(await r.check(opts.root)));
+  // 1) repository-level checks (--skills-only ではスキップ)
+  if (!opts.skillsOnly) {
+    for (const r of REPO_CHECKS) {
+      findings.push(...(await r.check(opts.root)));
+    }
   }
 
   // 2) file-level checks
+  const activeRules = opts.skillsOnly
+    ? RULES.filter((r) => r.standalone)
+    : RULES;
   const candidatePaths = opts.staged
     ? listStagedFiles(opts.root)
     : await walkRepo(opts.root);
 
   for (const rel of candidatePaths) {
-    const applicable = RULES.filter((r) => r.scope(rel));
+    const applicable = activeRules.filter((r) => r.scope(rel));
     if (applicable.length === 0) continue;
     let content: string;
     try {
@@ -576,7 +784,13 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
-  console.error('[architecture-harness] failed:', err);
-  process.exitCode = 1;
-});
+if (import.meta.main) {
+  main().catch((err: unknown) => {
+    console.error('[architecture-harness] failed:', err);
+    process.exitCode = 1;
+  });
+}
+
+// テスト (scripts/architecture-harness.test.ts) から invariant を直接検証するための export。
+export { RULES, REPO_CHECKS, parseFrontmatter };
+export type { Finding, Rule, RepoCheck, Severity };
