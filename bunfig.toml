@@ -9,9 +9,11 @@
 # 設計判断: docs/adr/0001-supply-chain-hardening.md
 
 [install]
-# 既定で誰の lifecycle script も信用しない。husky の prepare は `make setup-hooks` で
-# 明示的に実行する。新たに追加したいパッケージがあれば、ADR で正当化したうえで
-# ここに名前を足す。
+# Bun はデフォルトで「top 500 npm パッケージ」の lifecycle script を暗黙信頼する
+# 仕様 (公式 docs: install/lifecycle)。Wave 2 のように人気パッケージが乗っ取られた
+# ケースでは穴になりうるため、本ファイルで明示的に空配列に上書きし、暗黙信頼ゼロにする。
+# husky の prepare は `make setup-hooks` で明示的に実行する。
+# 新たに追加したいパッケージがあれば、ADR で正当化したうえでここに名前を足す。
 trustedDependencies = []
 
 # 監査時の進捗をログに残し、後追いしやすくする

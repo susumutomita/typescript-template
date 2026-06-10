@@ -423,41 +423,19 @@ const REPO_CHECKS: RepoCheck[] = [
   {
     id: 'INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT',
     description:
-      '.npmrc と bunfig.toml に supply-chain 防御の既定値が入っている (ignore-scripts / trustedDependencies=[])',
+      'bunfig.toml に trustedDependencies = [] が明示されている (Bun の暗黙信頼を空にする)',
     check: async (root) => {
       const findings: Finding[] = [];
-      const npmrcPath = path.join(root, '.npmrc');
-      try {
-        const content = await readFile(npmrcPath, 'utf8');
-        if (!/^\s*ignore-scripts\s*=\s*true\b/m.test(content)) {
-          findings.push({
-            rule: 'INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT',
-            severity: 'error',
-            file: '.npmrc',
-            message:
-              '.npmrc に ignore-scripts=true が無い (lifecycle script 経由のサプライチェーン攻撃を許す)',
-          });
-        }
-      } catch {
-        findings.push({
-          rule: 'INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT',
-          severity: 'error',
-          file: '.npmrc',
-          message:
-            '.npmrc が存在しない。npm/pnpm/yarn フォールバック時の防御として ignore-scripts=true を置く',
-        });
-      }
       const bunfigPath = path.join(root, 'bunfig.toml');
       try {
         const content = await readFile(bunfigPath, 'utf8');
-        // trustedDependencies = [] (空配列) を明示している行を検出
         if (!/trustedDependencies\s*=\s*\[\s*\]/m.test(content)) {
           findings.push({
             rule: 'INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT',
-            severity: 'warning',
+            severity: 'error',
             file: 'bunfig.toml',
             message:
-              'bunfig.toml に trustedDependencies = [] が無い。Bun が暗黙に許可するパッケージを明示的に空にする',
+              'bunfig.toml に trustedDependencies = [] が無い。Bun は top 500 npm パッケージを暗黙信頼するため、明示的に空配列で上書きする',
           });
         }
       } catch {

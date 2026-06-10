@@ -30,17 +30,28 @@
 以下を **すべて同時に** 既定値として固定する。一つでも欠けると上記攻撃チェーンの
 いずれかの段で詰められないため、多層化が前提。
 
-1. **install 既定値の強制**:
+1. **install 既定値の強制 (Bun 本体への第一線)**:
    `Makefile` の `install` / `install_ci` は常に `--ignore-scripts` を付ける。
+   公式 docs によれば **Bun は `.npmrc` の `ignore-scripts` も
+   `npm_config_ignore_scripts` 環境変数も読まず、設定経路は `bunfig.toml` のみ**
+   である。したがって Bun を叩くコマンド (CLI / Makefile / CI スクリプト)
+   側で毎回明示的にフラグを付けない限り、ignore は効かない。
    `make setup-hooks` を独立ターゲットにして husky の `prepare` だけを
    明示的に opt-in する。
-2. **設定ファイルでの二重化**:
-   - `bunfig.toml` で `trustedDependencies = []` を明示し、Bun が暗黙に
-     許可するパッケージをゼロにする。
-   - `.npmrc` で `ignore-scripts=true` / `engine-strict=true` /
-     `minimum-release-age=10080` (7 日) を設定する。`bun` 以外のクライアントに
-     誤って叩かれたときの保険。
-3. **architecture-harness の invariant 拡張** ([`scripts/architecture-harness.ts`](../../scripts/architecture-harness.ts)):
+2. **Bun デフォルト挙動の上書き (bunfig.toml)**:
+   Bun はデフォルトで「**top 500 npm パッケージ**」の lifecycle script を
+   暗黙に信頼して実行する。これは Wave 2 のように人気パッケージが乗っ取られた
+   ケースでは穴になりうる。`bunfig.toml` で `trustedDependencies = []` を
+   明示し、暗黙信頼ゼロに上書きする。
+3. **`.npmrc` は意図的に置かない**:
+   初版 (PR #103) では「npm/pnpm/yarn 誤実行時のフォールバック保険」として
+   `.npmrc` を置いたが、本テンプレートは Bun 専用であり、Bun は `.npmrc` を
+   読まない。そのため `.npmrc` を置いても **「効いていそうで効いていない」
+   security theater** になり、レビュアーや派生プロジェクトに誤った安心感を
+   与える。実際の defense-in-depth は (1) CLI フラグ、(2) `bunfig.toml`、
+   (4) architecture-harness の 3 段で十分。pnpm/npm/yarn を併用したい
+   派生プロジェクトは自分の責任で `.npmrc` を足す。
+4. **architecture-harness の invariant 拡張** ([`scripts/architecture-harness.ts`](../../scripts/architecture-harness.ts)):
    - `INVARIANT_INSTALL_IGNORE_SCRIPTS`: Makefile/CI/Dockerfile で
      `bun|npm|pnpm|yarn install` が `--ignore-scripts` 無しで現れたら error。
    - `INVARIANT_NO_GIT_DEPENDENCY`: `package.json` の任意の依存セクションが
@@ -54,9 +65,9 @@
      `.vscode/setup.mjs`, `codeql_analysis.yml`) を error として検出。
    - `INVARIANT_LOCKFILE_NO_GIT_RESOLUTION`: `bun.lock` / `package-lock.json`
      / `pnpm-lock.yaml` に git/github 解決された依存が含まれていたら error。
-   - `INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT`: 上記 `bunfig.toml` /
-     `.npmrc` がリポジトリに存在し、推奨値が入っているか確認。
-4. **harness は既定ゲート (`make before-commit`) に組み込み済み** なので、
+   - `INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT`: `bunfig.toml` に
+     `trustedDependencies = []` が明示されているか確認。
+5. **harness は既定ゲート (`make before-commit`) に組み込み済み** なので、
    コミット前と CI の両方で必ず走る。
 
 ローカル開発者が husky を使いたい場合は、`make install && make setup-hooks` の
@@ -79,23 +90,24 @@
   - `husky` の `prepare` が `make install` 時点で動かないので、新規 clone 直後に
     hook が無効になる。`make setup-hooks` を README で目立たせる必要がある
     (本 PR で対応済み)。
-  - `minimum-release-age` は pnpm 拡張で、npm/yarn では効かない。Bun は本機能を
-    現時点で読まないため、効くのは pnpm を併用する開発者のみ。それでも害は無い。
+  - `npm install` / `pnpm install` / `yarn install` を誤って叩いた場合の
+    防御は無い。本テンプレートは Bun 専用なので意図的にスコープ外とする。
 - **Tradeoff**:
   - 第二案として `safe-chain` のような第三者プロキシ単独で十分という選択肢が
     あった。しかし `safe-chain` 単独だと「ローカル開発で正しく走らないと
     bypass される」「IOC ファイルの commit を止めるレイヤーが無い」ため、
     多層化を選んだ。`safe-chain` は CI で併用継続。
-  - 再検討トリガー: Bun が公式に `min-release-age` をサポートしたとき、
-    `.npmrc` の重複設定を整理する。新規の攻撃ベクトル (例: Wave 3) が
-    観測されたら invariant を追記する。
+  - 再検討トリガー: Bun が公式に `min-release-age` 相当をサポートしたとき、
+    `bunfig.toml` に最低公開経過日数を追加する。pnpm/npm を併用する派生
+    プロジェクトが出てきたら、その時点で `.npmrc` を足すか検討する。
+    新規の攻撃ベクトル (例: Wave 3) が観測されたら invariant を追記する。
 
 ## References
 
 - 関連コード:
   - `scripts/architecture-harness.ts` (invariant 実装)
   - `Makefile` (`install` / `install_ci` / `setup-hooks`)
-  - `bunfig.toml`, `.npmrc`
+  - `bunfig.toml`
   - `.github/workflows/ci.yml` (safe-chain との二重化)
 - 関連 PR: <https://github.com/susumutomita/typescript-template/pull/103>
 - 関連 invariant 一覧: [`docs/architecture/harness.md`](../architecture/harness.md)
