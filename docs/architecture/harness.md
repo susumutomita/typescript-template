@@ -32,6 +32,14 @@
   `.claude/` 配下の全ファイルに、ゼロ幅/双方向 Unicode 制御文字や 120 文字以上の base64 ブロックを混入させない (error)。markdown では HTML コメントも隠し prompt injection のチャネルになりうるため warning。スキル・フックはモデルのコンテキストに注入される成果物であり、サプライチェーンの一部として扱う。
 - `INVARIANT_SKILL_NO_EXFIL_EXEC`
   `.claude/skills/`、`.claude/scripts/`、`.claude/rules/`、`.claude/settings.json` に、リモート取得をシェルへパイプする実行、base64 デコードの実行、`eval` や `sh -c` とコマンド置換でリモート取得結果を実行するパターンを置かない。サードパーティスキルの導入前検査は `/skill-audit` スキル (`--skills-only` モード) で行う。
+- `INVARIANT_NO_MVP_PLACEHOLDER`
+  `packages/` / `src/` / `scripts/` のアプリ・ツール実装に、手抜き・未完成の客観的シグナルを残さない (error)。対象はコメント内の作業中マーカー (TODO / FIXME / HACK / XXX、大小無視) と `not implemented` / `unimplemented` 系の throw。やり残しは `/follow-up` に切るか、その場で完了させる。役割分担: 空 catch は Biome の `noEmptyBlockStatements`、`any` は `noExplicitAny` が AST で拾う (linter で取れるものは linter に任せ、harness は linter に対応ルールが無いものだけを見る)。MVP を完了条件にしない原則 ([quality-bar.md](./quality-bar.md)) の機械的な裏打ち。
+- `INVARIANT_NO_TYPE_ESCAPE_HATCH`
+  `packages/` / `src/` / `scripts/` の TypeScript に、Biome が拾わない型エスケープを残さない (error)。対象は `as unknown as` の二段キャストと `@ts-nocheck` / `@ts-expect-error`。型を回避せず、外部入力は境界で検証して内部では検証済みの型だけを扱う。`any` / `as any` は Biome `noExplicitAny`、`@ts-ignore` は Biome `noTsIgnore` が担当する。
+
+## Definition of Done
+
+完了の正本は [quality-bar.md](./quality-bar.md)。harness が「やってはいけないこと」を機械で止めるのに対し、quality-bar.md は「満たすべき品質」を定義する。本 harness のゲートを全て通すことは完了の必要条件であって十分条件ではない。設計の良し悪し・代替案検討・命名・エッジケースの網羅など機械化できない品質は、設計ゲートと `/review` で担保する。根拠は [ADR-0003](../adr/0003-quality-first-no-mvp.md)。
 
 ## One-Pass Acceptance
 
@@ -43,7 +51,10 @@
 ## Banned Assumptions
 
 - "ローカルで動いた" を完了条件とする運用 (CI green が完了条件)
-- リンター設定ファイルを直接編集して問題を消す運用 (コードを直す)
+- "とりあえず動く MVP" を完了条件とする運用 (Definition of Done を満たして完了。[quality-bar.md](./quality-bar.md))
+- 最初に動いた構造をそのまま出荷する運用 (代替案を検討した最善の構造を選ぶ。設計ゲート)
+- "シンプル" を "小さく速い手抜き" と取り違える運用 (シンプルさは考え抜いた構成の結果)
+- リンター設定ファイルを直接編集して問題を消す運用 (コードを直す。ただし品質バーを上げる強化は ADR で許可)
 - 主目的と無関係な refactor を同 PR に混ぜる運用 (フォローアップに切る)
 - `Plan.md` を作らずに実装を始める運用
 

@@ -46,6 +46,51 @@ interface RepoCheck {
 
 // --- File-level invariants ---
 
+// packages/ src/ scripts/ のアプリ・ツール実装 (テスト・モック・fixture を除く)。
+// anti-MVP 系ルールが共有する scope。
+const isImplSource = (p: string, ext = /\.(ts|tsx|js|jsx)$/): boolean =>
+  (p.startsWith('packages/') ||
+    p.startsWith('src/') ||
+    p.startsWith('scripts/')) &&
+  ext.test(p) &&
+  !/\.(test|spec)\.(ts|tsx|js|jsx)$/.test(p) &&
+  !/(^|\/)(__mocks__|__fixtures__|__tests__|tests?)\//.test(p);
+
+// INVARIANT_NO_GIT_DEPENDENCY: version specifier の許可形 (registry-style のみ)。
+// semver ranges, ^x.y.z, ~x.y.z, x.y.z, *, latest, workspace:* など。
+const REGISTRY_SPEC =
+  /^(workspace:|catalog:|npm:|file:packages\/|[\^~><=*]|\d|latest$|\*$)/;
+// git+, github:, gitlab:, http(s)://, file:, link: など、レジストリ外参照。
+const NON_REGISTRY_URL =
+  /^(git\+|git:|github:|gitlab:|bitbucket:|https?:|file:|link:)/;
+
+// 1 依存の version specifier を検査する。NO_GIT_DEPENDENCY の per-dep ロジックを
+// 切り出して check 本体の認知的複雑度を下げる (Quality Bar の単一責務)。
+function inspectDependencySpec(
+  filePath: string,
+  section: string,
+  name: string,
+  spec: unknown
+): Finding | null {
+  if (typeof spec !== 'string') return null;
+  if (REGISTRY_SPEC.test(spec)) return null;
+  if (NON_REGISTRY_URL.test(spec)) {
+    return {
+      rule: 'INVARIANT_NO_GIT_DEPENDENCY',
+      severity: 'error',
+      file: filePath,
+      message: `${section}.${name} がレジストリ外参照 (${spec}) — Shai-Hulud 2nd 系は github URL の optionalDependencies で侵入する。レジストリ公開版を使う`,
+    };
+  }
+  // 想定外のフォーマットは警告止まりにとどめる (将来の表記ゆれを許容)
+  return {
+    rule: 'INVARIANT_NO_GIT_DEPENDENCY',
+    severity: 'warning',
+    file: filePath,
+    message: `${section}.${name} の version 表記 (${spec}) を確認。レジストリ semver 以外は避ける`,
+  };
+}
+
 const RULES: Rule[] = [
   {
     id: 'INVARIANT_NO_NPX',
@@ -176,52 +221,27 @@ const RULES: Rule[] = [
       'package.json の依存は npm レジストリ経由のみ (git/github/任意 URL を避ける)',
     scope: (p) => p === 'package.json' || /\/package\.json$/.test(p),
     check: ({ path: filePath, content }) => {
-      const findings: Finding[] = [];
       let pkg: Record<string, unknown>;
       try {
         pkg = JSON.parse(content);
       } catch {
-        return findings; // 壊れた JSON は別ルールで検出される
+        return []; // 壊れた JSON は別ルールで検出される
       }
       const sections = [
         'dependencies',
         'devDependencies',
         'optionalDependencies',
         'peerDependencies',
-      ] as const;
-      // version specifier の許可形 — registry-style のみ。
-      // semver ranges, ^x.y.z, ~x.y.z, x.y.z, *, latest, workspace:* など
-      const ALLOWED =
-        /^(workspace:|catalog:|npm:|file:packages\/|[\^~><=*]|\d|latest$|\*$)/;
+      ];
+      const findings: Finding[] = [];
       for (const section of sections) {
         const deps = pkg[section];
         if (!deps || typeof deps !== 'object') continue;
         for (const [name, spec] of Object.entries(
-          deps as Record<string, string>
+          deps as Record<string, unknown>
         )) {
-          if (typeof spec !== 'string') continue;
-          if (ALLOWED.test(spec)) continue;
-          // git+, github:, gitlab:, http(s)://, file: (workspace 例外は上で通している) など
-          if (
-            /^(git\+|git:|github:|gitlab:|bitbucket:|https?:|file:|link:)/.test(
-              spec
-            )
-          ) {
-            findings.push({
-              rule: 'INVARIANT_NO_GIT_DEPENDENCY',
-              severity: 'error',
-              file: filePath,
-              message: `${section}.${name} がレジストリ外参照 (${spec}) — Shai-Hulud 2nd 系は github URL の optionalDependencies で侵入する。レジストリ公開版を使う`,
-            });
-            continue;
-          }
-          // 想定外のフォーマットは警告止まりにとどめる (将来の表記ゆれを許容)
-          findings.push({
-            rule: 'INVARIANT_NO_GIT_DEPENDENCY',
-            severity: 'warning',
-            file: filePath,
-            message: `${section}.${name} の version 表記 (${spec}) を確認。レジストリ semver 以外は避ける`,
-          });
+          const finding = inspectDependencySpec(filePath, section, name, spec);
+          if (finding) findings.push(finding);
         }
       }
       return findings;
@@ -455,6 +475,94 @@ const RULES: Rule[] = [
             line: i + 1,
             message:
               'リモート取得・base64 デコードをシェルに流す実行パターンを検出。スキル/フック経由のコード実行はサプライチェーン攻撃の入口になるため、取得と実行を分離してレビュー可能にする',
+          });
+        }
+      }
+      return findings;
+    },
+  },
+  // 既知の限界 (以下 2 ルールの行単位静的検査): 文字列・コメント中にパターンを「言及」
+  // しただけの行もマッチしうる。語彙レベルの精密判定は Biome (AST) に委ね、
+  // まれな曖昧ケースは /review で見る。手書きで字句解析を再実装しない。
+  {
+    id: 'INVARIANT_NO_MVP_PLACEHOLDER',
+    description:
+      '実装に手抜き・未完成のシグナル (作業中マーカー / 未実装 throw) を残さない。空 catch・any は Biome が拾う',
+    standalone: true,
+    scope: (p) => isImplSource(p),
+    check: ({ path: filePath, content }) => {
+      const findings: Finding[] = [];
+      const flag = (line: number, message: string) =>
+        findings.push({
+          rule: 'INVARIANT_NO_MVP_PLACEHOLDER',
+          severity: 'error',
+          file: filePath,
+          line,
+          message,
+        });
+      // 検出語をソースに連続文字列で書くと自己検出する (本ファイルも scripts/ で scope 内)。
+      // 断片から組み立てて回避する。
+      const markers = [
+        ['T', 'ODO'],
+        ['FIX', 'ME'],
+        ['HA', 'CK'],
+        ['X', 'XX'],
+      ].map((parts) => parts.join(''));
+      // 作業中マーカーはコメント内だけを大小無視で検出する。識別子・文字列を誤検知しない。
+      // 行コメント // は直前が : でない場合のみ扱い、文字列中の https:// を除外する。
+      const commentMarker = new RegExp(
+        `((?<!:)//|/\\*|^\\s*\\*).*\\b(${markers.join('|')})\\b`,
+        'i'
+      );
+      // not implemented / unimplemented / NotImplementedError 等を語幹で拾う (大小無視)。
+      const impl = ['imple', 'ment'].join('');
+      const notImpl = new RegExp(`(not[\\s_-]*${impl}|un${impl})`, 'i');
+      const throwKeyword = /\bthrow\b/;
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (commentMarker.test(line)) {
+          flag(
+            i + 1,
+            'やり残しを示す作業中マーカーをコメントに残さない。/follow-up に切るか、その場で完了させる'
+          );
+        }
+        if (throwKeyword.test(line) && notImpl.test(line)) {
+          flag(
+            i + 1,
+            '未実装を示す throw を残さない。仮実装ではなく完成した実装を出す'
+          );
+        }
+      }
+      return findings;
+    },
+  },
+  {
+    id: 'INVARIANT_NO_TYPE_ESCAPE_HATCH',
+    description:
+      'TypeScript の型エスケープのうち Biome が拾わないもの (unknown 経由の二段キャスト / nocheck・expect-error ディレクティブ) を残さない',
+    standalone: true,
+    scope: (p) => isImplSource(p, /\.(ts|tsx)$/),
+    check: ({ path: filePath, content }) => {
+      const findings: Finding[] = [];
+      // 役割分担: any 系のキャストは Biome の noExplicitAny、ts-ignore ディレクティブは
+      // Biome の noTsIgnore が AST で拾う。ここでは Biome に対応ルールが無いものだけを見る。
+      // 自己検出回避のため検出語は断片から組み立てる。
+      const asUnknownAs = /\bas\s+unknown\s+as\b/;
+      const suppress = new RegExp(
+        `@ts-(${['noche', 'ck'].join('')}|${['expect', '-error'].join('')})`
+      );
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (asUnknownAs.test(line) || suppress.test(line)) {
+          findings.push({
+            rule: 'INVARIANT_NO_TYPE_ESCAPE_HATCH',
+            severity: 'error',
+            file: filePath,
+            line: i + 1,
+            message:
+              '型を回避しない。unknown 経由の二段キャストや型抑制ディレクティブをやめ、外部入力は境界で検証して型を保つ',
           });
         }
       }

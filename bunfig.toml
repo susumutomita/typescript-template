@@ -18,3 +18,9 @@ trustedDependencies = []
 
 # 監査時の進捗をログに残し、後追いしやすくする
 saveTextLockfile = true
+
+[test]
+# カバレッジ 100% は Definition of Done (docs/architecture/quality-bar.md / ADR-0003)。
+# `bun test --coverage` 実行時に下回ったら失敗させる。閾値は 0-1 の割合で 1 = 100%。
+coverageThreshold = 1
+
