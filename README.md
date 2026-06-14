@@ -94,4 +94,4 @@ make before-commit  # コミット前チェック（harness + harness_test + lin
 
 ## 開発ガイドライン
 
-[CLAUDE.md](./CLAUDE.md) を参照。
+[CLAUDE.md](./CLAUDE.md) を参照。完了の品質基準は [docs/architecture/quality-bar.md](./docs/architecture/quality-bar.md)、その根拠は [ADR-0003](./docs/adr/0003-quality-first-no-mvp.md) にある。MVP は完了条件ではない。プロがそのまま使える品質で初回から出すことをデフォルトとする。

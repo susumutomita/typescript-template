@@ -18,6 +18,8 @@
 
 ## 実装原則
 
+- **品質ファースト**: MVP は完了条件ではない。プロがそのまま使える品質で初回から出す。シンプルさは手抜きではなく、考え抜いた最善の構成が結果そう見えること。正本は [`docs/architecture/quality-bar.md`](./docs/architecture/quality-bar.md)（根拠 [ADR-0003](./docs/adr/0003-quality-first-no-mvp.md)）。
+- **設計ゲート**: 実装前に設計を残す（新機能は `docs/design/`、小変更は Plan.md）。代替案・選定理由・エッジケース。最初に動いた構造を採用しない。
 - **TDD**: テストを先に書く（Red → Green → Refactor）。カバレッジ 100% を維持する。
 - **BDD スタイル**: `describe`/`it` を日本語で記述し、振る舞いを表現する。
 - **No Mock**: 実際の DB・API・ファイル I/O を使う。モックデータ・スタブ API 禁止。

@@ -244,6 +244,142 @@ describe('INVARIANT_SKILL_NO_EXFIL_EXEC', () => {
   });
 });
 
+describe('INVARIANT_NO_MVP_PLACEHOLDER', () => {
+  const r = rule('INVARIANT_NO_MVP_PLACEHOLDER');
+  const APP = 'packages/app/src/feature.ts';
+
+  it('packages/src/scripts のアプリ実装を対象にし、テスト/モックは除外する', () => {
+    expect(r.scope(APP)).toBe(true);
+    expect(r.scope('scripts/tool.ts')).toBe(true);
+    expect(r.scope('packages/app/src/feature.test.ts')).toBe(false);
+    expect(r.scope('packages/app/src/__mocks__/db.ts')).toBe(false);
+    expect(r.scope('packages/app/tests/helper.ts')).toBe(false);
+    expect(r.scope('packages/app/src/__tests__/x.ts')).toBe(false);
+    expect(r.scope('docs/notes.ts')).toBe(false);
+  });
+
+  it('コメントの作業中マーカーを正しい rule id の error にする', () => {
+    const findings = r.check({
+      path: APP,
+      content: '// TODO: あとで実装する\n',
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('error');
+    expect(findings[0]?.rule).toBe('INVARIANT_NO_MVP_PLACEHOLDER');
+    expect(findings[0]?.line).toBe(1);
+  });
+
+  it('小文字・ブロック・jsdoc のマーカーも拾う (大小無視)', () => {
+    expect(r.check({ path: APP, content: '// todo: あとで\n' })).toHaveLength(
+      1
+    );
+    expect(r.check({ path: APP, content: 'x(); /* FIXME */\n' })).toHaveLength(
+      1
+    );
+    expect(r.check({ path: APP, content: ' * HACK: 後で直す\n' })).toHaveLength(
+      1
+    );
+  });
+
+  it('未実装を示す throw を error にする (NotImplementedError 含む)', () => {
+    expect(
+      r.check({ path: APP, content: "  throw new Error('not implemented');\n" })
+    ).toHaveLength(1);
+    expect(
+      r.check({ path: APP, content: '  throw new NotImplementedError();\n' })
+    ).toHaveLength(1);
+  });
+
+  it('空 catch・any は Biome に委譲し本ルールでは拾わない', () => {
+    expect(
+      r.check({ path: APP, content: 'try { run(); } catch {}\n' })
+    ).toHaveLength(0);
+    expect(
+      r.check({ path: APP, content: 'const x = val as any;\n' })
+    ).toHaveLength(0);
+  });
+
+  it('識別子・文字列・URL・本体のある catch は誤検知しない', () => {
+    const findings = r.check({
+      path: APP,
+      content: [
+        'const todoList: Todo[] = [];',
+        'const conf = { TODO: true };',
+        'const u = "https://example.com/TODO/page";',
+        'return `<input placeholder="名前" />`;',
+        'try { run(); } catch (e) { logger.error(e); }',
+      ].join('\n'),
+    });
+    expect(findings).toHaveLength(0);
+  });
+});
+
+describe('INVARIANT_NO_TYPE_ESCAPE_HATCH', () => {
+  const r = rule('INVARIANT_NO_TYPE_ESCAPE_HATCH');
+  const APP = 'packages/app/src/feature.ts';
+
+  it('TypeScript 実装を対象にし、テストと js は除外する', () => {
+    expect(r.scope(APP)).toBe(true);
+    expect(r.scope('packages/app/src/feature.tsx')).toBe(true);
+    expect(r.scope('packages/app/src/feature.test.ts')).toBe(false);
+    expect(r.scope('packages/app/tests/helper.ts')).toBe(false);
+    expect(r.scope('scripts/tool.js')).toBe(false);
+  });
+
+  it('unknown 経由の二段キャストを正しい rule id の error にする', () => {
+    const findings = r.check({
+      path: APP,
+      content: 'const x = val as unknown as Foo;\n',
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.rule).toBe('INVARIANT_NO_TYPE_ESCAPE_HATCH');
+  });
+
+  it('Biome が拾わない型抑制 (nocheck / expect-error) を error にする', () => {
+    expect(
+      r.check({ path: APP, content: '// @ts-nocheck\nconst x = y;\n' })
+    ).toHaveLength(1);
+    expect(
+      r.check({
+        path: APP,
+        content: '// @ts-expect-error 後で直す\nconst x = y;\n',
+      })
+    ).toHaveLength(1);
+  });
+
+  it('any キャストと @ts-ignore は Biome に委譲し本ルールでは拾わない', () => {
+    expect(
+      r.check({ path: APP, content: 'const x = val as any;\n' })
+    ).toHaveLength(0);
+    expect(
+      r.check({ path: APP, content: '// @ts-ignore\nconst x = y;\n' })
+    ).toHaveLength(0);
+  });
+
+  it('正当な型アサーション (as Foo / as const) は誤検知しない', () => {
+    const findings = r.check({
+      path: APP,
+      content: 'const x = val as Foo;\nconst y = [1, 2] as const;\n',
+    });
+    expect(findings).toHaveLength(0);
+  });
+});
+
+describe('anti-MVP ルールの自己検出ガード', () => {
+  it('ハーネス自身のソースを両ルールが誤検出しない', async () => {
+    const src = await Bun.file(
+      path.join(import.meta.dir, 'architecture-harness.ts')
+    ).text();
+    const target = 'scripts/architecture-harness.ts';
+    for (const id of [
+      'INVARIANT_NO_MVP_PLACEHOLDER',
+      'INVARIANT_NO_TYPE_ESCAPE_HATCH',
+    ]) {
+      expect(rule(id).check({ path: target, content: src })).toHaveLength(0);
+    }
+  });
+});
+
 describe('parseFrontmatter', () => {
   it('トップレベルの key: value を読む', () => {
     const fm = parseFrontmatter(
