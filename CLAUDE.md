@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+Owner: リポジトリメンテナ（変更は PR レビュー必須）。記事「Steering Claude Code」の推奨に従い 200 行未満を維持する。
+
 共通の作業ガイド（ツールスタック、品質ゲート、作業順序、フォローアップ、制約、スキル authoring 規律、ADR）は AGENTS.md を正本とし、ここに import する。
 
 @AGENTS.md
@@ -52,6 +54,8 @@ PR 作成前の必須ゲート（順序・コマンドは AGENTS.md の「品質
 
 スキルの書き方は AGENTS.md の「スキルの書き方」を正本とし、`.claude/rules/skill-authoring.md`（path-scoped rule）が `.claude/skills/` 配下の作業時に自動で読み込まれる。
 
+同梱の subagent として、コードレビュー用の [`.claude/agents/code-reviewer.md`](./.claude/agents/code-reviewer.md) とデバッグ用の [`.claude/agents/debugger.md`](./.claude/agents/debugger.md) を用意する。それぞれ専用コンテキストでレビュー・障害調査を担う。
+
 ## AI 機能を実装するときのモデル指針
 
 - Claude モデルを使う実装では最新世代を既定にする（2026-06 時点: `claude-fable-5` / `claude-opus-4-8` / `claude-sonnet-4-6` / `claude-haiku-4-5`）。
@@ -60,10 +64,11 @@ PR 作成前の必須ゲート（順序・コマンドは AGENTS.md の「品質
 
 ## ドキュメント規則
 
-- 文末は「。」で終える。
-- 日本語と半角英数字の間に半角スペースを入れる。
-- 絵文字と太字の併用を避ける。
-- textlint はセーフティネット。執筆時点でルールを意識してエラーを作らない。
+文体規則（文末「。」・日本語と半角英数字の間の半角スペース・絵文字と太字の併用回避）は path-scoped rule [`.claude/rules/doc-style.md`](./.claude/rules/doc-style.md) を正本とし、Markdown 編集時に自動で読み込まれる。textlint はセーフティネットであり、執筆時点で意識してエラーを作らない。
+
+## steering 機構の使い分け
+
+CLAUDE.md・skill・hook・path-scoped rule・subagent の役割分担と使い分けは [`docs/architecture/steering.md`](./docs/architecture/steering.md) を正本とする。常時ロードのコンテキストは軽く保ち、パス固有の規則は rule へ寄せる。
 
 ## コンパクション指示
 
