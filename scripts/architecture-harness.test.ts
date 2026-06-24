@@ -93,6 +93,102 @@ describe('INVARIANT_SKILL_FRONTMATTER_VALID', () => {
   });
 });
 
+describe('INVARIANT_AGENT_FRONTMATTER_VALID', () => {
+  const r = rule('INVARIANT_AGENT_FRONTMATTER_VALID');
+  const AGENT_PATH = '.claude/agents/sample-agent.md';
+
+  function agentDoc(frontmatter: string, body = '# sample-agent\n') {
+    return `---\n${frontmatter}\n---\n\n${body}`;
+  }
+
+  it('.claude/agents 直下の .md だけを対象にする', () => {
+    expect(r.scope(AGENT_PATH)).toBe(true);
+    expect(r.scope('.claude/agents/reviewer.md')).toBe(true);
+    expect(r.scope('.claude/agents/nested/sub.md')).toBe(false);
+    expect(r.scope('.claude/skills/sample-skill/SKILL.md')).toBe(false);
+    expect(r.scope('docs/agents.md')).toBe(false);
+  });
+
+  it('frontmatter が無い agent 定義を error にする', () => {
+    const findings = r.check({
+      path: AGENT_PATH,
+      content: '# frontmatter なし agent\n',
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('error');
+    expect(findings[0].rule).toBe('INVARIANT_AGENT_FRONTMATTER_VALID');
+  });
+
+  it('name が無い場合を error にする', () => {
+    const findings = r.check({
+      path: AGENT_PATH,
+      content: agentDoc(
+        'description: サンプル subagent の説明。対象と発火条件をトリガー語彙として十分な長さで明示している説明文。'
+      ),
+    });
+    expect(
+      findings.some((f) => f.severity === 'error' && f.message.includes('name'))
+    ).toBe(true);
+  });
+
+  it('name とファイル名の不一致を error にする', () => {
+    const findings = r.check({
+      path: AGENT_PATH,
+      content: agentDoc(
+        'name: other-name\ndescription: サンプル subagent の説明。対象と発火条件をトリガー語彙として十分な長さで明示している説明文。'
+      ),
+    });
+    expect(
+      findings.some(
+        (f) => f.severity === 'error' && f.message.includes('ファイル名')
+      )
+    ).toBe(true);
+  });
+
+  it('description が無い場合を error にする', () => {
+    const findings = r.check({
+      path: AGENT_PATH,
+      content: agentDoc('name: sample-agent'),
+    });
+    expect(
+      findings.some(
+        (f) => f.severity === 'error' && f.message.includes('description')
+      )
+    ).toBe(true);
+  });
+
+  it('短い description (50 文字未満) を warning にする', () => {
+    const findings = r.check({
+      path: AGENT_PATH,
+      content: agentDoc('name: sample-agent\ndescription: 短い説明。'),
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warning');
+  });
+
+  it('1024 文字を超える description を error にする', () => {
+    const findings = r.check({
+      path: AGENT_PATH,
+      content: agentDoc(
+        `name: sample-agent\ndescription: ${'あ'.repeat(1025)}`
+      ),
+    });
+    expect(
+      findings.some((f) => f.severity === 'error' && f.message.includes('1024'))
+    ).toBe(true);
+  });
+
+  it('name 一致かつ十分な description なら findings を出さない', () => {
+    const findings = r.check({
+      path: AGENT_PATH,
+      content: agentDoc(
+        'name: sample-agent\ndescription: コードレビューを担当する subagent。差分の正確性を確認し、簡素化の余地を洗い出す。PR 直前のレビュー段階で使う。'
+      ),
+    });
+    expect(findings).toHaveLength(0);
+  });
+});
+
 describe('INVARIANT_SKILL_NO_HIDDEN_INSTRUCTIONS', () => {
   const r = rule('INVARIANT_SKILL_NO_HIDDEN_INSTRUCTIONS');
 

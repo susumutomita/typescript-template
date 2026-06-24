@@ -320,56 +320,36 @@ const RULES: Rule[] = [
       'SKILL.md は frontmatter に name/description を持ち、name はディレクトリ名と一致する',
     standalone: true,
     scope: (p) => /^\.claude\/skills\/[^/]+\/SKILL\.md$/.test(p),
-    check: ({ path: filePath, content }) => {
-      const findings: Finding[] = [];
-      const flag = (
-        message: string,
-        severity: Severity = 'error',
-        line?: number
-      ) =>
-        findings.push({
-          rule: 'INVARIANT_SKILL_FRONTMATTER_VALID',
-          severity,
-          file: filePath,
-          line,
-          message,
-        });
-      const dirName = filePath.split('/')[2];
-      const fm = parseFrontmatter(content);
-      if (!fm) {
-        flag(
-          'SKILL.md に YAML frontmatter (--- で囲まれた name/description) が無い、または YAML として読めない',
-          'error',
-          1
-        );
-        return findings;
-      }
-      const name = fm.name?.trim();
-      if (!name) {
-        flag('frontmatter に name が無い');
-      } else if (name !== dirName) {
-        flag(
-          `frontmatter の name (${name}) がディレクトリ名 (${dirName}) と一致しない。スキル名は公開 API として扱い、ディレクトリと同期させる`
-        );
-      }
-      const description = fm.description?.trim();
-      if (!description) {
-        flag('frontmatter に description が無い');
-      } else {
-        if (description.length < 50) {
-          flag(
-            `description が ${description.length} 文字と短い。発火条件が曖昧になるため、対象・サブコマンド・「いつ使うか」をトリガー語彙として 50 文字以上で書く`,
-            'warning'
-          );
-        }
-        if (description.length > 1024) {
-          flag(
-            `description が ${description.length} 文字。Claude Code の上限 (1024 文字) を超えている`
-          );
-        }
-      }
-      return findings;
-    },
+    check: ({ path: filePath, content }) =>
+      checkFrontmatterDoc({
+        rule: 'INVARIANT_SKILL_FRONTMATTER_VALID',
+        filePath,
+        content,
+        // スキル名はディレクトリ名と同期させる (公開 API として扱う)。
+        expectedName: filePath.split('/')[2],
+        docLabel: 'SKILL.md',
+        nameSource: 'ディレクトリ名',
+      }),
+  },
+  {
+    id: 'INVARIANT_AGENT_FRONTMATTER_VALID',
+    description:
+      'subagent 定義 (.claude/agents/<name>.md) は frontmatter に name/description を持ち、name はファイル名と一致する',
+    standalone: true,
+    scope: (p) => /^\.claude\/agents\/[^/]+\.md$/.test(p),
+    check: ({ path: filePath, content }) =>
+      checkFrontmatterDoc({
+        rule: 'INVARIANT_AGENT_FRONTMATTER_VALID',
+        filePath,
+        content,
+        // subagent 名はファイル名 (拡張子除く) と同期させる (公開 API として扱う)。
+        expectedName: (filePath.split('/').pop() ?? filePath).replace(
+          /\.md$/,
+          ''
+        ),
+        docLabel: 'subagent 定義',
+        nameSource: 'ファイル名',
+      }),
   },
   {
     id: 'INVARIANT_SKILL_NO_HIDDEN_INSTRUCTIONS',
@@ -570,6 +550,67 @@ const RULES: Rule[] = [
     },
   },
 ];
+
+// frontmatter (name/description) を持つサプライチェーン成果物 (SKILL.md / agents) の
+// 共通検証ロジック。name の期待値と表示ラベルだけがルール間で異なるため、ここに集約して
+// スキル invariant と agent invariant の重複実装を避ける (ADR-0002 / ADR-0005)。
+interface FrontmatterDocSpec {
+  rule: string;
+  filePath: string;
+  content: string;
+  // frontmatter の name と一致すべき値 (スキルはディレクトリ名、agent はファイル名)。
+  expectedName: string;
+  // メッセージに出すドキュメント種別の表示名 (例: "SKILL.md" / "subagent 定義")。
+  docLabel: string;
+  // name の期待値の出所をメッセージに出すラベル (例: "ディレクトリ名" / "ファイル名")。
+  nameSource: string;
+}
+
+function checkFrontmatterDoc(spec: FrontmatterDocSpec): Finding[] {
+  const findings: Finding[] = [];
+  const flag = (message: string, severity: Severity = 'error', line?: number) =>
+    findings.push({
+      rule: spec.rule,
+      severity,
+      file: spec.filePath,
+      line,
+      message,
+    });
+  const fm = parseFrontmatter(spec.content);
+  if (!fm) {
+    flag(
+      `${spec.docLabel} に YAML frontmatter (--- で囲まれた name/description) が無い、または YAML として読めない`,
+      'error',
+      1
+    );
+    return findings;
+  }
+  const name = fm.name?.trim();
+  if (!name) {
+    flag('frontmatter に name が無い');
+  } else if (name !== spec.expectedName) {
+    flag(
+      `frontmatter の name (${name}) が${spec.nameSource} (${spec.expectedName}) と一致しない。名前は公開 API として扱い、${spec.nameSource}と同期させる`
+    );
+  }
+  const description = fm.description?.trim();
+  if (!description) {
+    flag('frontmatter に description が無い');
+  } else {
+    if (description.length < 50) {
+      flag(
+        `description が ${description.length} 文字と短い。発火条件が曖昧になるため、対象・サブコマンド・「いつ使うか」をトリガー語彙として 50 文字以上で書く`,
+        'warning'
+      );
+    }
+    if (description.length > 1024) {
+      flag(
+        `description が ${description.length} 文字。Claude Code の上限 (1024 文字) を超えている`
+      );
+    }
+  }
+  return findings;
+}
 
 // frontmatter (--- で囲まれた YAML) を Bun ランタイム組み込みの YAML パーサで読む。
 // 依存ゼロ方針 (ADR-0001) は維持 — Bun.YAML はランタイム同梱でありライブラリ追加ではない。
