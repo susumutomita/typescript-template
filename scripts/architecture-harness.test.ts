@@ -607,6 +607,7 @@ describe('公開品質ルール', () => {
           content: [
             '<button type="button" aria-label="閉じる"><CloseIcon /></button>',
             '<button type="button"><CloseIcon />閉じる</button>',
+            '<button type="button"><CloseIcon />{label}</button>',
           ].join('\n'),
         })
       ).toHaveLength(0);

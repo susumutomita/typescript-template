@@ -78,6 +78,22 @@ function openingTags(content: string): OpeningTag[] {
   return tags;
 }
 
+function hasVisibleText(content: string): boolean {
+  let cursor = 0;
+  while (cursor < content.length) {
+    const char = content[cursor];
+    if (/\s/.test(char)) {
+      cursor++;
+      continue;
+    }
+    if (char !== '<') return true;
+    const end = findTagEnd(content, cursor + 1);
+    if (end === -1) return true;
+    cursor = end + 1;
+  }
+  return false;
+}
+
 function hasAttribute(tag: string, name: string): boolean {
   return new RegExp(`\\b${name}\\s*=`, 'i').test(tag);
 }
@@ -255,12 +271,7 @@ const PRE_RELEASE_RULES: Rule[] = [
         .filter((tag) => {
           const close = content.toLowerCase().indexOf('</button>', tag.end);
           if (close === -1) return false;
-          const inner = content
-            .slice(tag.end, close)
-            .replace(/<[^>]+>/g, '')
-            .replace(/\{[^}]*\}/g, '')
-            .trim();
-          return inner.length === 0;
+          return !hasVisibleText(content.slice(tag.end, close));
         })
         .map((tag) =>
           finding(
