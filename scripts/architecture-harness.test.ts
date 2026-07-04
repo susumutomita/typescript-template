@@ -461,6 +461,212 @@ describe('INVARIANT_NO_TYPE_ESCAPE_HATCH', () => {
   });
 });
 
+describe('公開品質ルール', () => {
+  const TSX = 'packages/frontend/src/App.tsx';
+  const HTML = 'packages/frontend/index.html';
+
+  describe('INVARIANT_NO_CLIENT_AUTH_STORAGE', () => {
+    const r = rule('INVARIANT_NO_CLIENT_AUTH_STORAGE');
+
+    it('認証情報らしい値のブラウザストレージ保存を error にする', () => {
+      const findings = r.check({
+        path: TSX,
+        content: [
+          "localStorage.setItem('accessToken', token);",
+          "sessionStorage.setItem('session', credential);",
+        ].join('\n'),
+      });
+      expect(findings).toHaveLength(2);
+      expect(findings.every((finding) => finding.severity === 'error')).toBe(
+        true
+      );
+    });
+
+    it('表示設定の保存とテストファイルは対象外にする', () => {
+      expect(
+        r.check({
+          path: TSX,
+          content: "localStorage.setItem('theme', 'dark');\n",
+        })
+      ).toHaveLength(0);
+      expect(r.scope('packages/frontend/src/App.test.tsx')).toBe(false);
+    });
+  });
+
+  describe('INVARIANT_NO_DANGEROUS_HTML', () => {
+    const r = rule('INVARIANT_NO_DANGEROUS_HTML');
+
+    it('React と DOM の危険な HTML 注入を error にする', () => {
+      const findings = r.check({
+        path: TSX,
+        content: [
+          'return <div dangerouslySetInnerHTML={{ __html: input }} />;',
+          'element.innerHTML = input;',
+        ].join('\n'),
+      });
+      expect(findings).toHaveLength(2);
+      expect(findings.every((finding) => finding.severity === 'error')).toBe(
+        true
+      );
+    });
+
+    it('通常のテキスト描画を許可する', () => {
+      expect(
+        r.check({ path: TSX, content: 'return <div>{input}</div>;\n' })
+      ).toHaveLength(0);
+    });
+  });
+
+  describe('INVARIANT_EXTERNAL_LINK_SAFE', () => {
+    const r = rule('INVARIANT_EXTERNAL_LINK_SAFE');
+
+    it('複数行の target blank で rel が不足するリンクを error にする', () => {
+      const findings = r.check({
+        path: TSX,
+        content: [
+          '<a',
+          '  href="https://example.com"',
+          '  target="_blank"',
+          '  rel="noopener"',
+          '>',
+          '  Example',
+          '</a>',
+        ].join('\n'),
+      });
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.severity).toBe('error');
+      expect(findings[0]?.line).toBe(1);
+    });
+
+    it('noopener noreferrer の両方があれば許可する', () => {
+      expect(
+        r.check({
+          path: TSX,
+          content:
+            '<a href="https://example.com" target="_blank" rel="noreferrer noopener">Example</a>\n',
+        })
+      ).toHaveLength(0);
+    });
+
+    it('JSX 式の target blank を検出し、動的 rel は warning にする', () => {
+      const missingRel = r.check({
+        path: TSX,
+        content: "<a href={url} target={'_blank'}>Example</a>\n",
+      });
+      expect(missingRel).toHaveLength(1);
+      expect(missingRel[0]?.severity).toBe('error');
+
+      const dynamicRel = r.check({
+        path: TSX,
+        content:
+          '<a href={url} target={`_blank`} rel={externalRel}>Example</a>\n',
+      });
+      expect(dynamicRel).toHaveLength(1);
+      expect(dynamicRel[0]?.severity).toBe('warning');
+    });
+  });
+
+  describe('INVARIANT_IMAGE_ALT_REQUIRED', () => {
+    const r = rule('INVARIANT_IMAGE_ALT_REQUIRED');
+
+    it('複数行の img に alt がなければ error にする', () => {
+      const findings = r.check({
+        path: TSX,
+        content: ['<img', '  src={avatarUrl}', '/>'].join('\n'),
+      });
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.severity).toBe('error');
+    });
+
+    it('空を含む alt 属性とカスタム Image コンポーネントを許可する', () => {
+      expect(
+        r.check({
+          path: TSX,
+          content: '<img src="/divider.svg" alt="" />\n<Image src={hero} />\n',
+        })
+      ).toHaveLength(0);
+    });
+  });
+
+  describe('INVARIANT_ICON_BUTTON_ACCESSIBLE_NAME', () => {
+    const r = rule('INVARIANT_ICON_BUTTON_ACCESSIBLE_NAME');
+
+    it('アイコンだけの button に accessible name がなければ warning にする', () => {
+      const findings = r.check({
+        path: TSX,
+        content: '<button type="button"><CloseIcon /></button>\n',
+      });
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.severity).toBe('warning');
+    });
+
+    it('aria-label または表示文字列があれば許可する', () => {
+      expect(
+        r.check({
+          path: TSX,
+          content: [
+            '<button type="button" aria-label="閉じる"><CloseIcon /></button>',
+            '<button type="button"><CloseIcon />閉じる</button>',
+          ].join('\n'),
+        })
+      ).toHaveLength(0);
+    });
+  });
+
+  describe('INVARIANT_PUBLIC_METADATA_PRESENT', () => {
+    const r = rule('INVARIANT_PUBLIC_METADATA_PRESENT');
+    const complete = [
+      '<html lang="ja">',
+      '<head>',
+      '<meta name="description" content="説明" />',
+      '<link rel="canonical" href="https://example.com/" />',
+      '<meta property="og:title" content="Title" />',
+      '<meta property="og:description" content="Description" />',
+      '<meta property="og:url" content="https://example.com/" />',
+      '<meta property="og:image" content="https://example.com/og.png" />',
+      '<meta name="twitter:card" content="summary_large_image" />',
+      '</head>',
+      '</html>',
+    ].join('\n');
+
+    it('公開 index.html の不足メタデータを項目ごとに error にする', () => {
+      const findings = r.check({
+        path: HTML,
+        content: '<html><head><title>Page</title></head></html>\n',
+      });
+      expect(findings).toHaveLength(8);
+      expect(findings.every((finding) => finding.severity === 'error')).toBe(
+        true
+      );
+    });
+
+    it('必要なメタデータが揃えば findings を出さない', () => {
+      expect(r.check({ path: HTML, content: complete })).toHaveLength(0);
+      expect(r.scope('packages/frontend/src/fragment.html')).toBe(false);
+    });
+  });
+
+  describe('INVARIANT_NO_PRODUCTION_NOINDEX', () => {
+    const r = rule('INVARIANT_NO_PRODUCTION_NOINDEX');
+
+    it('アプリ実装に残る noindex を error にする', () => {
+      const findings = r.check({
+        path: HTML,
+        content: '<meta name="robots" content="noindex, nofollow" />\n',
+      });
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.severity).toBe('error');
+    });
+
+    it('docs と fixture は対象外にする', () => {
+      expect(r.scope('docs/noindex-example.html')).toBe(false);
+      expect(r.scope('packages/frontend/src/__fixtures__/noindex.html')).toBe(
+        false
+      );
+    });
+  });
+});
+
 describe('anti-MVP ルールの自己検出ガード', () => {
   it('ハーネス自身のソースを両ルールが誤検出しない', async () => {
     const src = await Bun.file(
@@ -550,6 +756,91 @@ describe('--skills-only モード (CLI 統合)', () => {
     const res = spawnSync(
       'bun',
       [SCRIPT, '--skills-only', `--root=${root}`, '--fail-on=warning'],
+      { encoding: 'utf8' }
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('(なし)');
+  });
+});
+
+describe('--pre-release モード (CLI 統合)', () => {
+  const SCRIPT = path.join(import.meta.dir, 'architecture-harness.ts');
+  const tempRoots: string[] = [];
+
+  afterAll(() => {
+    for (const root of tempRoots) {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  function makeProject(appSource: string): string {
+    const root = mkdtempSync(path.join(tmpdir(), 'pre-release-project-'));
+    tempRoots.push(root);
+    const dir = path.join(root, 'packages/frontend/src');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'App.tsx'), appSource);
+    return root;
+  }
+
+  it('公開品質ルールだけをリポジトリ前提チェックなしで実行する', () => {
+    const root = makeProject("localStorage.setItem('accessToken', token);\n");
+    const res = spawnSync(
+      'bun',
+      [SCRIPT, '--pre-release', `--root=${root}`, '--fail-on=error'],
+      { encoding: 'utf8' }
+    );
+    expect(res.status).toBe(2);
+    expect(res.stdout).toContain('INVARIANT_NO_CLIENT_AUTH_STORAGE');
+    expect(res.stdout).not.toContain('INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT');
+    expect(res.stdout).not.toContain('INVARIANT_NO_MVP_PLACEHOLDER');
+  });
+});
+
+describe('ローカル worktree の除外 (CLI 統合)', () => {
+  const SCRIPT = path.join(import.meta.dir, 'architecture-harness.ts');
+  let root = '';
+
+  afterAll(() => {
+    if (root) rmSync(root, { recursive: true, force: true });
+  });
+
+  it('親 checkout から .claude/worktrees の複製内容を検査しない', () => {
+    root = mkdtempSync(path.join(tmpdir(), 'harness-worktrees-'));
+    const requiredFiles: Array<[string, string]> = [
+      [
+        'docs/architecture/harness.md',
+        '# Harness\n\n' +
+          'この文書はテスト用リポジトリの invariant を十分な長さで定義する正本です。'.repeat(
+            3
+          ),
+      ],
+      ['docs/adr/0000-template.md', '# ADR template\n'],
+      [
+        '.claude/skills/follow-up/SKILL.md',
+        [
+          '---',
+          'name: follow-up',
+          'description: テスト用の follow-up スキル。scope 外の発見を記録し、別の変更として管理するときに使う。',
+          '---',
+          '',
+          '# Follow-up',
+        ].join('\n'),
+      ],
+      ['bunfig.toml', 'trustedDependencies = []\n'],
+      [
+        '.claude/worktrees/agent/.github/template.md',
+        '<!-- worktree 内だけにある警告対象 -->\n',
+      ],
+    ];
+    for (const [relativePath, content] of requiredFiles) {
+      const filePath = path.join(root, relativePath);
+      mkdirSync(path.dirname(filePath), { recursive: true });
+      writeFileSync(filePath, content);
+    }
+
+    const res = spawnSync(
+      'bun',
+      [SCRIPT, `--root=${root}`, '--fail-on=warning'],
       { encoding: 'utf8' }
     );
     expect(res.status).toBe(0);

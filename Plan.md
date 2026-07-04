@@ -1,5 +1,65 @@
 # Plan.md
 
+### 公開品質ガードと blindspot pass - 2026-07-04
+
+#### 目的
+
+Issue 112 と Issue 120 を実装し、テンプレートから生成したプロジェクトに
+公開前チェック、機械検査、PR / CI 導線、未知を証拠付きで探索する
+review-only スキルを標準搭載する。
+
+#### 制約
+
+- 作業順序は docs 更新、harness の責務整理、テスト、機能実装とする。
+- 新 invariant は `docs/architecture/harness.md` と ADR-0006 を正本にする。
+- 自動検出が不確実な項目は error にせず、人間向けチェックリストに残す。
+- 既存の未コミット `package.json` 変更を保持する。
+- `.claude/` を変更するため、通常ゲートに加えて skill-audit を通す。
+
+#### タスク
+
+1. 設計、ADR、harness 正本を先に更新する。
+2. architecture harness に `pre-release` ルールグループを追加する。
+3. 公開品質ルールをテスト先行で追加する。
+4. チェックリスト、PR テンプレート、CI、README、package script を接続する。
+5. `blindspot-pass` スキル、fixture、実行例、skills index を追加する。
+6. architecture harness、before-commit、skill-audit、review、
+   security-review、simplify の各ゲートを通す。
+
+#### 検証手順
+
+- `bun test scripts/`
+- `bun run check:pre-release`
+- `bun scripts/architecture-harness.ts --fail-on=warning`
+- `make before-commit`
+- `.claude/skills/skill-audit/SKILL.md` の Quick Workflow
+
+#### 進捗ログ
+
+- 2026-07-04: 設計と ADR-0006 を先に追加し、専用スキャナではなく既存 harness の
+  rule group として公開品質検査を統合した。
+- 2026-07-04: 7 invariant、`--pre-release`、複数行 JSX / 動的属性、
+  ローカル worktree 除外をテスト先行で実装した。68 tests が Green。
+- 2026-07-04: 5 チェックリスト、PR テンプレート、GitHub Actions、
+  init-project、README、package command を接続した。
+- 2026-07-04: review-only の `blindspot-pass` と fixture / 実行例を追加した。
+  skill-audit の機械検査と目視レビューは指摘なし。
+- 2026-07-04: 全 harness、公開品質検査、変更対象の Biome / textlint、
+  `git diff --check` は Green。開始時から存在した未コミットの
+  `package.json` 変更が textlint を過去の immutable ADR まで拡張し、
+  既存文書 60 件で `make before-commit` を停止させるため、このユーザー変更は
+  上書きせず判断待ちとした。
+- 2026-07-04: workspace は未生成のため、ルートの typecheck / test / build は
+  `No packages matched the filter` となる。harness の 68 tests は個別に完了した。
+
+#### 振り返り
+
+- 高シグナルな構文検査と、人間が実行経路や運用環境を判断するチェックを分離した。
+- 通常 harness と公開前専用 command が同じ rule 実装を使うため、判定差分を作らない。
+- 動的 `rel` の安全性は断定せず warning とし、fail-open を避けた。
+
+---
+
 ### 品質ファースト化（MVP・三流コードの再発防止） - 2026-06-13
 
 #### 目的

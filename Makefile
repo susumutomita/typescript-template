@@ -73,11 +73,15 @@ architecture_harness:
 harness_test:
 	bun test scripts/
 
+.PHONY: pre_release_check
+pre_release_check:
+	bun run check:pre-release
+
 .PHONY: before-commit
 # typecheck / test / build は各 workspace が該当 script を持つ前提に依存するため、本テンプレートの
 # 既定ゲートには含めない。利用プロジェクト側で `before-commit: ... typecheck test build` のように
 # 拡張するか、"no script ならスキップ" 型 runner を用意して取り込むこと。
-before-commit: architecture_harness harness_test lint_text lint
+before-commit: architecture_harness harness_test pre_release_check lint_text lint
 
 .PHONY: dev
 dev:

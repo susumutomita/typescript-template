@@ -13,6 +13,7 @@ permissions:
 
 on:
   push:
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -50,6 +51,7 @@ jobs:
           CI: "true"
         run: make install_ci
 
-      - name: lint typecheck test build
+      - name: Run quality gates
         run: |
+          bun scripts/architecture-harness.ts --fail-on=error
           make before-commit
