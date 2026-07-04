@@ -126,7 +126,22 @@ AI に丸投げで生成したテストは、実行パスを本当にカバー�
 - [ ] _検証コマンド / 観察 signal_
 - [ ] _tear-down で元に戻せるか (dev 環境)_
 
-## 既知の未完了 (scope 外)
+## 公開品質チェック
+
+変更種別に応じて
+[`docs/checklists/pre-release.md`](../docs/checklists/pre-release.md) から詳細を確認する。
+
+- [ ] UI 変更: accessibility / responsive / loading / error / empty state を確認した
+- [ ] 公開ページ変更: SEO / OGP / canonical / noindex を確認した
+- [ ] API 変更: server-side validation / authorization / error response を確認した
+- [ ] Auth 変更: token storage / Cookie attributes / enumeration risk を確認した
+- [ ] Infra 変更: cache / security headers / logs / alarms / rollback を確認した
+- [ ] `bun run check:pre-release` が完了した
+- [ ] 該当なしの場合、理由を下に記載した
+
+該当なしの理由:
+
+## Known follow-ups
 
 <!-- この PR で解決しない既知問題。scope から除外した理由、後続 issue / PR 案を明示 -->
 

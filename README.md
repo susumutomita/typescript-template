@@ -38,8 +38,9 @@ make format         # biome format
 make typecheck      # tsc --noEmit（全ワークスペース）
 make test           # bun test（全ワークスペース）
 make harness_test   # architecture-harness の検出ロジックをテスト
+nr check:pre-release # 公開品質 invariant を全件スキャン
 make build          # ビルド（全ワークスペース）
-make before-commit  # コミット前チェック（harness + harness_test + lint_text + lint）
+make before-commit  # コミット前チェック（harness + test + 公開品質 + lint）
 ```
 
 ## スキル
@@ -51,6 +52,7 @@ make before-commit  # コミット前チェック（harness + harness_test + lin
 | `/architecture-harness` | invariant の機械検証。`why <RULE_ID>` で意図を表示 |
 | `/skill-audit` | スキル・フック・設定の監査。サードパーティスキルの導入前検査 |
 | `/follow-up` | scope 外の発見をフォローアップとして記録・解消管理 |
+| `/blindspot-pass` | 設計・Issue・PR・実装経路の未知を証拠付きで探索する review-only 検査 |
 | `/frontend-design` | 高品質なフロントエンド実装 |
 
 ## ディレクトリ構成
@@ -91,6 +93,19 @@ make before-commit  # コミット前チェック（harness + harness_test + lin
 - `INVARIANT_SKILL_NO_EXFIL_EXEC` — リモート取得のシェルパイプ実行・base64 デコード実行の検出。
 
 サードパーティスキルの導入前検査と目視レビューのチェックリストは `/skill-audit` スキルに集約している。設計判断は [ADR-0002](./docs/adr/0002-skill-audit-invariants.md) を参照。
+
+## 公開前レビュー
+
+公開前の人間向け確認事項は
+[公開前チェックリスト](./docs/checklists/pre-release.md) を入口に、
+セキュリティ、アクセシビリティ、SEO / OGP、運用へ分割している。
+`nr check:pre-release` は、認証情報のブラウザ保存、危険な HTML 出力、
+安全でない外部リンク、画像の代替テキスト不足、公開 metadata の不足、
+本番ページの `noindex` を検出する。PR テンプレートと GitHub Actions から同じゲートを実行する。
+
+機械検査できない認可、cache、復旧、監視はチェックリストとレビューで確認する。
+設計判断と自動化の境界は
+[ADR-0006](./docs/adr/0006-pre-release-quality-guardrails.md) を参照。
 
 ## 開発ガイドライン
 

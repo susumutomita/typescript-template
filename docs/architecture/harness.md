@@ -38,6 +38,27 @@
   `packages/` / `src/` / `scripts/` のアプリ・ツール実装に、手抜き・未完成の客観的シグナルを残さない (error)。対象はコメント内の作業中マーカー (TODO / FIXME / HACK / XXX、大小無視) と `not implemented` / `unimplemented` 系の throw。やり残しは `/follow-up` に切るか、その場で完了させる。役割分担: 空 catch は Biome の `noEmptyBlockStatements`、`any` は `noExplicitAny` が AST で拾う (linter で取れるものは linter に任せ、harness は linter に対応ルールが無いものだけを見る)。MVP を完了条件にしない原則 ([quality-bar.md](./quality-bar.md)) の機械的な裏打ち。
 - `INVARIANT_NO_TYPE_ESCAPE_HATCH`
   `packages/` / `src/` / `scripts/` の TypeScript に、Biome が拾わない型エスケープを残さない (error)。対象は `as unknown as` の二段キャストと `@ts-nocheck` / `@ts-expect-error`。型を回避せず、外部入力は境界で検証して内部では検証済みの型だけを扱う。`any` / `as any` は Biome `noExplicitAny`、`@ts-ignore` は Biome `noTsIgnore` が担当する。
+- `INVARIANT_NO_CLIENT_AUTH_STORAGE`
+  `packages/` / `src/` のブラウザ実装で、token / auth / session / credential を示すキーや値を `localStorage` / `sessionStorage` に保存しない (error)。認証情報は JavaScript から読めない HttpOnly Cookie など、脅威モデルに合うサーバー管理方式を使う。
+- `INVARIANT_NO_DANGEROUS_HTML`
+  `packages/` / `src/` の実装で `dangerouslySetInnerHTML` や DOM `innerHTML` 代入を使わない (error)。ユーザー入力を HTML として直接解釈せず、例外が必要なら sanitizer と threat model を ADR で設計して invariant を supersede する。
+- `INVARIANT_EXTERNAL_LINK_SAFE`
+  JSX / HTML の `target="_blank"` には `rel="noopener noreferrer"` を両方指定する (error)。複数行タグと動的な属性値も属性の存在を検査する。
+- `INVARIANT_IMAGE_ALT_REQUIRED`
+  JSX / HTML のネイティブ `img` には `alt` 属性を必須とする (error)。装飾画像は空 `alt`、意味のある画像は内容を表す代替テキストを指定する。
+- `INVARIANT_ICON_BUTTON_ACCESSIBLE_NAME`
+  JSX / HTML でアイコン要素だけを持つ `button` は `aria-label` / `aria-labelledby` / `title` のいずれかを持つことを確認する。子コンポーネントが表示文字列を生成する可能性を静的に確定できないため warning とし、アクセシビリティレビューで最終確認する。
+- `INVARIANT_PUBLIC_METADATA_PRESENT`
+  公開ページの入口となる `index.html` は `html lang`、meta description、canonical URL、Open Graph (`og:title` / `og:description` / `og:url` / `og:image`)、Twitter Card を持つ (error)。
+- `INVARIANT_NO_PRODUCTION_NOINDEX`
+  `packages/` / `src/` の本番向け HTML / JSX / TSX に `noindex` を残さない (error)。検索非公開が製品要件の場合は対象 path を分離し、設計判断を ADR に残す。
+
+上記 7 件は `pre-release` ルールグループに属する。通常 harness では他の invariant と
+一緒に実行し、`bun scripts/architecture-harness.ts --pre-release` では公開品質規則だけを
+全件実行する。console のデバッグ出力は Biome `noConsole`、認可・キャッシュ・復旧・
+監視など意味解析が必要な項目は [公開前チェックリスト](../checklists/pre-release.md) と
+コードレビューが担当する。設計判断は
+[ADR-0006](../adr/0006-pre-release-quality-guardrails.md) を参照。
 
 ## Definition of Done
 
@@ -70,6 +91,11 @@
 
 - 自分の変更だけ厳密チェック: `bun scripts/architecture-harness.ts --staged --fail-on=error`
 - リポジトリ全体スキャン: `bun scripts/architecture-harness.ts`
+- 公開品質ルールだけを全件スキャン: `bun scripts/architecture-harness.ts --pre-release --fail-on=error`
 - PR 直前の総合ゲート: `make before-commit` (詳細は `CLAUDE.md` の「ゲート」)
+
+全件スキャンは Claude Code が作るローカル専用の `.claude/worktrees/` を除外する。
+各 worktree は別の Git checkout としてそれぞれ検査し、親 checkout から複製内容を
+重複検査しない。
 
 Git hook と AI エージェント向けガイド (`CLAUDE.md` / `AGENTS.md`) はこの文書を参照して同じ判定に従います。

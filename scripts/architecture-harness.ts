@@ -16,33 +16,13 @@
 import { execFileSync } from 'node:child_process';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-
-type Severity = 'error' | 'warning';
-
-interface Finding {
-  rule: string;
-  severity: Severity;
-  file: string;
-  line?: number;
-  message: string;
-}
-
-interface Rule {
-  id: string;
-  description: string;
-  // リポジトリ前提 (REPO_CHECKS) なしで単体スキャン可能なルール。
-  // --skills-only モードではこのフラグを持つルールだけが実行される。
-  standalone?: boolean;
-  // ファイル単位のチェック (false を返したら skip)
-  scope: (filePath: string) => boolean;
-  check: (file: { path: string; content: string }) => Finding[];
-}
-
-interface RepoCheck {
-  id: string;
-  description: string;
-  check: (root: string) => Promise<Finding[]>;
-}
+import type {
+  Finding,
+  RepoCheck,
+  Rule,
+  Severity,
+} from './architecture-harness-types';
+import { PRE_RELEASE_RULES } from './pre-release-rules';
 
 // --- File-level invariants ---
 
@@ -549,6 +529,7 @@ const RULES: Rule[] = [
       return findings;
     },
   },
+  ...PRE_RELEASE_RULES,
 ];
 
 // frontmatter (name/description) を持つサプライチェーン成果物 (SKILL.md / agents) の
@@ -816,7 +797,9 @@ async function walkRepo(root: string): Promise<string[]> {
     for (const entry of entries) {
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue;
-        await walk(path.join(dir, entry.name));
+        const child = path.join(dir, entry.name);
+        if (path.relative(root, child) === '.claude/worktrees') continue;
+        await walk(child);
         continue;
       }
       const rel = path.relative(root, path.join(dir, entry.name));
@@ -849,6 +832,8 @@ interface CliOptions {
   // リポジトリ外に置いたサードパーティスキル候補を /skill-audit pre-install で
   // 検査する用途 (bunfig.toml 等のリポジトリ前提を要求しない)。
   skillsOnly: boolean;
+  // 公開品質ルールだけを全件検査し、REPO_CHECKS をスキップする。
+  preRelease: boolean;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -856,10 +841,12 @@ function parseArgs(argv: string[]): CliOptions {
     root: process.cwd(),
     staged: false,
     skillsOnly: false,
+    preRelease: false,
   };
   for (const arg of argv) {
     if (arg === '--staged') opts.staged = true;
     else if (arg === '--skills-only') opts.skillsOnly = true;
+    else if (arg === '--pre-release') opts.preRelease = true;
     else if (arg.startsWith('--root=')) opts.root = path.resolve(arg.slice(7));
     else if (arg.startsWith('--fail-on=')) {
       const v = arg.slice(10);
@@ -895,38 +882,51 @@ function formatReport(findings: Finding[]): string {
   return lines.join('\n');
 }
 
-async function main(): Promise<void> {
-  const opts = parseArgs(process.argv.slice(2));
-  const findings: Finding[] = [];
-
-  // 1) repository-level checks (--skills-only ではスキップ)
-  if (!opts.skillsOnly) {
-    for (const r of REPO_CHECKS) {
-      findings.push(...(await r.check(opts.root)));
-    }
+function selectRules(opts: CliOptions): Rule[] {
+  if (opts.skillsOnly) return RULES.filter((rule) => rule.standalone);
+  if (opts.preRelease) {
+    return RULES.filter((rule) => rule.groups?.includes('pre-release'));
   }
+  return RULES;
+}
 
-  // 2) file-level checks
-  const activeRules = opts.skillsOnly
-    ? RULES.filter((r) => r.standalone)
-    : RULES;
+async function collectRepoFindings(opts: CliOptions): Promise<Finding[]> {
+  if (opts.skillsOnly || opts.preRelease) return [];
+  const findings: Finding[] = [];
+  for (const repoCheck of REPO_CHECKS) {
+    findings.push(...(await repoCheck.check(opts.root)));
+  }
+  return findings;
+}
+
+async function collectFileFindings(opts: CliOptions): Promise<Finding[]> {
+  const findings: Finding[] = [];
+  const activeRules = selectRules(opts);
   const candidatePaths = opts.staged
     ? listStagedFiles(opts.root)
     : await walkRepo(opts.root);
-
   for (const rel of candidatePaths) {
-    const applicable = activeRules.filter((r) => r.scope(rel));
+    const applicable = activeRules.filter((rule) => rule.scope(rel));
     if (applicable.length === 0) continue;
     let content: string;
     try {
       content = await readFile(path.join(opts.root, rel), 'utf8');
     } catch {
-      continue; // 削除ファイル等
+      continue;
     }
-    for (const r of applicable) {
-      findings.push(...r.check({ path: rel, content }));
+    for (const rule of applicable) {
+      findings.push(...rule.check({ path: rel, content }));
     }
   }
+  return findings;
+}
+
+async function main(): Promise<void> {
+  const opts = parseArgs(process.argv.slice(2));
+  const findings = [
+    ...(await collectRepoFindings(opts)),
+    ...(await collectFileFindings(opts)),
+  ];
 
   console.log(formatReport(findings));
 

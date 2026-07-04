@@ -35,6 +35,7 @@
     "lint": "bun biome check .",
     "lint:fix": "bun biome check --write .",
     "lint:text": "bun textlint ./README.md",
+    "check:pre-release": "bun scripts/architecture-harness.ts --pre-release --fail-on=error",
     "lint-staged": "lint-staged",
     "format": "bun biome format --write .",
     "format:check": "bun biome format .",

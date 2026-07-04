@@ -1,6 +1,7 @@
 ---
 name: init-project
 description: プロジェクトを Bun + Hono（バックエンド）+ Vite + React（フロントエンド）+ Biome でスキャフォールドする初期化スキル。テンプレートを clone した直後の初回セットアップ時に、ユーザーが明示的に実行する。
+allowed-tools: Read, Write, AskUserQuestion, Bash(bun install --ignore-scripts:*), Bash(nr:*)
 disable-model-invocation: true
 ---
 
@@ -44,6 +45,7 @@ disable-model-invocation: true
 
 1. バックエンドのみ、フロントエンドのみ、フルスタックのどれか。
 2. プロジェクト固有の追加依存（例: Prisma, Drizzle, Zod など）があるか。
+3. フロントエンドを作る場合、公開 URL、サービス名、description、OGP 画像の絶対 URL。
 
 ---
 
@@ -246,7 +248,14 @@ export default defineConfig({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>App</title>
+    <meta name="description" content="<DESCRIPTION>" />
+    <link rel="canonical" href="<PUBLIC_URL>" />
+    <meta property="og:title" content="<SERVICE_NAME>" />
+    <meta property="og:description" content="<DESCRIPTION>" />
+    <meta property="og:url" content="<PUBLIC_URL>" />
+    <meta property="og:image" content="<OG_IMAGE_URL>" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title><SERVICE_NAME></title>
   </head>
   <body>
     <div id="root"></div>
@@ -254,6 +263,9 @@ export default defineConfig({
   </body>
 </html>
 ```
+
+`<PUBLIC_URL>`、`<SERVICE_NAME>`、`<DESCRIPTION>`、`<OG_IMAGE_URL>` は
+手順 1 で確認した実値に置換する。プレースホルダーのままファイルを作成しない。
 
 ### packages/frontend/src/main.tsx
 
@@ -279,10 +291,10 @@ createRoot(root).render(
 
 ## 手順 5: 依存をインストールする
 
-ルートで `bun install` を実行するだけで全ワークスペースの依存が一括インストールされる。
+ルートで lifecycle script を無効にして依存をインストールする。
 
 ```bash
-bun install
+bun install --ignore-scripts
 ```
 
 ## 手順 6: 動作確認する
@@ -292,6 +304,7 @@ nr test           # 全ワークスペースのユニットテストが通るこ
 nr typecheck      # 型エラーがないこと
 nr test:e2e       # フロントエンドの E2E テストが通ること（packages/frontend）
 nr test:api       # バックエンドの API テストが通ること（packages/backend、hurl が必要）
+nr check:pre-release # 公開品質 invariant が通ること
 ```
 
 ## 手順 7: ユーザーに完了報告する
