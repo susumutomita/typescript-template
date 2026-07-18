@@ -492,6 +492,15 @@ describe('INVARIANT_CI_ACTION_SHA_PINNED', () => {
     ).toHaveLength(1);
   });
 
+  it('コロン前に空白を挟んだ uses (YAML 許容表記) も検査を素通りさせない', () => {
+    expect(
+      r.check({ path: WF, content: '      - uses : actions/checkout@v4\n' })
+    ).toHaveLength(1);
+    expect(
+      r.check({ path: WF, content: `uses : actions/checkout@${SHA}\n` })
+    ).toHaveLength(0);
+  });
+
   it('full-length commit SHA なら findings を出さない', () => {
     const content = [
       `      - uses: actions/checkout@${SHA}`,
@@ -534,7 +543,7 @@ describe('INVARIANT_CI_ACTION_SHA_PINNED', () => {
     ).toHaveLength(0);
   });
 
-  it('コメント行や uses 以外の行は無視する', () => {
+  it('コメント行と単一行 run の uses 言及は無視する (ブロックスカラー内は安全側で誤検知しうる)', () => {
     const content = [
       '# uses: actions/checkout@v4',
       '  # uses: actions/checkout@v4',

@@ -32,6 +32,8 @@
 #### 進捗ログ
 
 - 2026-07-18: ブランチ `claude/clean-code-ci-ai-practices-okoj4a` で作業開始。zenn.dev への到達がネットワークポリシーで拒否されたため、TenkaCloud の CI プラクティス（audit-deps / ci-local / SHA ピン運用）との差分分析で対象を確定。node_modules のネストにも lifecycle script 持ちパッケージが 6 件あることを確認し、監査スクリプトは再帰スキャンで設計。
+- 2026-07-18: 初回実装で全ゲート緑、baseline 34 件（全 script 目視レビュー済み）を生成し PR 122 をドラフト作成。
+- 2026-07-18: code-reviewer subagent の指摘を反映。(1) workspace 除外を name ベースから「リポジトリ内実体への symlink」の path 判定へ変更（name 偽装による監査回避の穴を閉鎖）、(2) baseline の shape 検証を追加し、破損は missing と区別して baseline-corrupt で fail（無レビュー再生成への誘導を防止）、(3) `uses :` 表記の bypass を regex 修正で閉鎖、(4) diff を双方向化（hook 縮小・パッケージ消滅も fail、stale 承認の再利用経路を閉鎖）、(5) cancel-in-progress を main 以外に限定、(6) 異常系・CLI 経路のテストと symlink ループ防御を追加、(7) docs の表記齟齬を同期。
 
 #### 振り返り
 

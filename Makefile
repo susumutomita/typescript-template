@@ -96,6 +96,8 @@ before-commit: architecture_harness harness_test pre_release_check lint_text lin
 # 完全ミラー (install は除く)。before-commit は staged 差分向けの高速ゲートで、
 # audit_deps と harness 全件スキャンを含まないため、before-commit 緑は CI 緑を
 # 保証しない。PR 前に CI 相当を通したいときはこちらを使う (ADR-0007)。
+# 前提: audit_deps はローカルの node_modules を見るため、lockfile を変更した後は
+# 先に `make install_ci` (または `make install`) を済ませないと CI と結果がずれる。
 ci_local: audit_deps
 	bun scripts/architecture-harness.ts --fail-on=error
 	$(MAKE) before-commit

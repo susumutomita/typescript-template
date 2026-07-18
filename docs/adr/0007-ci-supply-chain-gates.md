@@ -29,19 +29,24 @@ ADR-0001 で lifecycle script を「実行させない」防御 (`--ignore-scrip
 
 1. **依存 lifecycle script の baseline 監査** (`INVARIANT_DEPS_LIFECYCLE_AUDITED`):
    `scripts/audit-dependencies.ts` が `node_modules` を再帰スキャンし
-   (ネストされた `node_modules` 内の version 競合コピーも対象)、install 時に
-   発火する lifecycle script (preinstall / install / postinstall / preprepare /
-   prepare / postprepare) を持つパッケージ集合を
-   `scripts/audit-baseline.json` と diff する。新規パッケージの出現、既存依存への
-   hook 追加のどちらも fail。baseline 更新は
+   (ネストされた `node_modules` 内の version 競合コピーも対象。symlink ループは
+   実体 path の訪問記録で防ぐ)、install 時に発火する lifecycle script
+   (preinstall / install / postinstall / preprepare / prepare / postprepare) を
+   持つパッケージ集合を `scripts/audit-baseline.json` と diff する。乖離は
+   **増減どちらの方向も fail** — 新規パッケージ・hook 追加に加え、hook 縮小・
+   パッケージ消滅も対象にする。縮小方向を許すと stale な承認が baseline に残り、
+   後日の同 hook 再追加がレビューなしで通ってしまうため。baseline 更新は
    `bun scripts/audit-dependencies.ts --update` とし、対象 script の目視レビューと
-   PR 本文への理由記載を必須にする (人間の承認を経ない攻撃面の拡大を止める)。
-   workspace パッケージ (root + `packages/*`) は自リポジトリのコードなので
-   監査対象から除外する。
+   PR 本文への理由記載を必須にする (人間の承認を経ない攻撃面の変更を止める)。
+   workspace の除外は package.json の `name` (攻撃者が制御できる値) ではなく
+   「node_modules 直下の symlink がリポジトリ内の実体を指すか」の path 判定で
+   行う。名前だけ workspace を騙る通常ディレクトリは除外されず diff に現れる。
 2. **Actions の SHA ピン留めを invariant 化** (`INVARIANT_CI_ACTION_SHA_PINNED`):
-   architecture-harness に追加し、`.github/workflows/*.yml` の `uses:` が
-   full-length commit SHA (40 桁 hex) でない参照を error にする。`docker://` は
-   `@sha256:` digest を要求する。ローカル参照 (`./` 始まり) は対象外。
+   architecture-harness に追加し、`.github/workflows/*.yml` / `*.yaml` の
+   `uses:` (YAML が許容する `uses :` 表記を含む) が full-length commit SHA
+   (40 桁 hex) でない参照を error にする。`docker://` は `@sha256:` digest を
+   要求する。ローカル参照 (`./` 始まり) は対象外。行単位の静的検査のため
+   `run: |` ブロックスカラー内の uses: 風の行は安全側 (error) に誤検知しうる。
    これまでのコメント運用を機械強制へ昇格させる。
 3. **CI 完全ミラー `make ci_local`**: CI が実行する検査 (audit_deps →
    harness 全件スキャン → before-commit) を CI と同じ順序で 1 コマンド実行する。
@@ -60,11 +65,13 @@ ADR-0001 で lifecycle script を「実行させない」防御 (`--ignore-scrip
   - 「CI でだけ落ちる」手戻りが `make ci_local` の 1 コマンドで事前に潰せる。
   - CI の同時実行が整理され、古い push の実行に費やす Actions 時間が消える。
 - **Bad**:
-  - 依存の追加・更新で lifecycle script 構成が変わるたびに baseline 更新の
-    一手間が増える (意図的な摩擦。レビューを強制するのが目的)。
+  - 依存の追加・更新で lifecycle script 構成が変わるたびに (縮小方向も含めて)
+    baseline 更新の一手間が増える (意図的な摩擦。レビューを強制するのが目的)。
   - baseline は package 名単位の snapshot であり、同名パッケージの script の
     **内容**変化 (既存 hook の中身が悪性化するケース) は検出しない。内容の検証は
     `--ignore-scripts` による実行停止と Safe Chain、目視レビューが受け持つ。
+  - `make ci_local` の audit はローカルの `node_modules` を見るため、lockfile
+    変更後に install を済ませていないと CI と結果がずれる (Makefile に前提を明記)。
 - **Tradeoff**:
   - 重複コードの baseline ratchet (jscpd) も TenkaCloud では CI ゲートだが、
     新規依存の追加を伴うため本 ADR からは除外しフォローアップとした

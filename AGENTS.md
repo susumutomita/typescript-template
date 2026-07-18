@@ -32,7 +32,7 @@ make before-commit              # architecture-harness + harness_test + lint_tex
 
 **すべて通らない限りタスクは未完了。** 失敗したらコードを修正する（設定ファイルや invariant を変えない）。`.claude/` 配下（スキル・フック・設定）を変更した PR では、加えて `/skill-audit` の Quick Workflow を通す。
 
-`make before-commit` は staged 差分向けの高速ゲートで、CI の完全ミラーではない。CI は追加で `make audit_deps`（依存 lifecycle script の baseline 監査、ADR-0007）と harness 全件スキャンを実行するため、before-commit 緑でも CI が落ちることがある。PR 前に CI 相当を通したいときは `make ci_local`（CI と同じ検査・同じ順序）を実行する。
+`make before-commit` は staged 差分向けの高速ゲートで、CI の完全ミラーではない。CI は追加で `make audit_deps`（依存 lifecycle script の baseline 監査、ADR-0007）と harness 全件スキャンを実行するため、before-commit 緑でも CI が落ちることがある。PR 前に CI 相当を通したいときは `make ci_local`（CI と同じ検査・同じ順序）を実行する。audit_deps はローカルの node_modules を見るため、lockfile を変更したら先に `make install` を済ませる。
 
 ゲート緑は必要条件であって完了条件ではない。完了の正本は [`docs/architecture/quality-bar.md`](docs/architecture/quality-bar.md) の Definition of Done。MVP は完了ではない。
 

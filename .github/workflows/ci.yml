@@ -20,9 +20,11 @@ on:
   workflow_dispatch:
 
 # 同一 ref の古い実行を自動キャンセルし、押し直し分の Actions 時間を消す。
+# main は履歴として全 commit の CI 結果を残したいためキャンセルしない
+# (連続 merge で先行 commit の run が消えるのを防ぐ)。
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   ci:

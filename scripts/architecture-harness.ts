@@ -75,7 +75,10 @@ function inspectDependencySpec(
 // GitHub Actions のタグ・ブランチ参照は付け替え可能 (mutable) で、付け替え型の
 // サプライチェーン攻撃 (tj-actions/changed-files 事件型) の入口になるため、
 // full commit SHA (docker は sha256 digest) 以外を error にする (ADR-0007)。
-const USES_LINE = /^\s*(?:-\s+)?uses:\s*["']?([^\s"']+)/;
+// YAML はキーとコロンの間の空白 (`uses :`) を許容するため regex でも許容する。
+// 既知の限界 (行単位の静的検査): `run: |` ブロックスカラー内に uses: 風の行が
+// あると安全側 (error) に誤検知する。回避は行を書き換えるか YAML 構造を変える。
+const USES_LINE = /^\s*(?:-\s+)?uses\s*:\s*["']?([^\s"']+)/;
 const FULL_SHA_REF = /@[0-9a-f]{40}$/;
 const DOCKER_DIGEST_REF = /@sha256:[0-9a-f]{64}$/;
 

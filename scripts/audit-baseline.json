@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "install 時に発火する lifecycle script を持つ依存パッケージの承認済み snapshot (INVARIANT_DEPS_LIFECYCLE_AUDITED / ADR-0007)。実行は --ignore-scripts と trustedDependencies = [] が止めており、この baseline は攻撃面の増加を検出する。更新は bun scripts/audit-dependencies.ts --update + 目視レビュー + PR 本文への理由記載。",
+  "description": "install 時に発火する lifecycle script を持つ依存パッケージの承認済み snapshot (INVARIANT_DEPS_LIFECYCLE_AUDITED / ADR-0007)。実行は --ignore-scripts と trustedDependencies = [] が止めており、この baseline は攻撃面の変化を検出する。更新は bun scripts/audit-dependencies.ts --update + 目視レビュー + PR 本文への理由記載。",
   "entries": {
     "@textlint-ja/textlint-rule-preset-ai-writing": ["prepare"],
     "@textlint-rule/textlint-rule-no-invalid-control-character": ["prepare"],
