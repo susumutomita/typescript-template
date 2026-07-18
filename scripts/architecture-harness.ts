@@ -71,6 +71,40 @@ function inspectDependencySpec(
   };
 }
 
+// INVARIANT_CI_ACTION_SHA_PINNED: workflow の uses: 1 行を検査する。
+// GitHub Actions のタグ・ブランチ参照は付け替え可能 (mutable) で、付け替え型の
+// サプライチェーン攻撃 (tj-actions/changed-files 事件型) の入口になるため、
+// full commit SHA (docker は sha256 digest) 以外を error にする (ADR-0007)。
+// YAML はキーとコロンの間の空白 (`uses :`) を許容するため regex でも許容する。
+// 既知の限界 (行単位の静的検査): `run: |` ブロックスカラー内に uses: 風の行が
+// あると安全側 (error) に誤検知する。回避は行を書き換えるか YAML 構造を変える。
+const USES_LINE = /^\s*(?:-\s+)?uses\s*:\s*["']?([^\s"']+)/;
+const FULL_SHA_REF = /@[0-9a-f]{40}$/;
+const DOCKER_DIGEST_REF = /@sha256:[0-9a-f]{64}$/;
+
+function inspectWorkflowUsesLine(
+  filePath: string,
+  line: string,
+  lineNo: number
+): Finding | null {
+  const matched = USES_LINE.exec(line);
+  if (!matched) return null;
+  const ref = matched[1] ?? '';
+  // リポジトリ内のローカル action はコミットと一体で更新されるため対象外。
+  if (ref.startsWith('./')) return null;
+  const pinned = ref.startsWith('docker://')
+    ? DOCKER_DIGEST_REF.test(ref)
+    : FULL_SHA_REF.test(ref);
+  if (pinned) return null;
+  return {
+    rule: 'INVARIANT_CI_ACTION_SHA_PINNED',
+    severity: 'error',
+    file: filePath,
+    line: lineNo,
+    message: `uses: ${ref} が full commit SHA で固定されていない。タグ/ブランチは付け替え型サプライチェーン攻撃の入口になるため、40 桁 SHA (docker は sha256 digest) でピン留めする`,
+  };
+}
+
 const RULES: Rule[] = [
   {
     id: 'INVARIANT_NO_NPX',
@@ -290,6 +324,21 @@ const RULES: Rule[] = [
           file: filePath,
           message: `scripts.${hook} = "${cmd}" — lifecycle hook は許可リスト (husky 等) のみ。攻撃面を増やす任意処理は別 script に分けて手動実行する`,
         });
+      }
+      return findings;
+    },
+  },
+  {
+    id: 'INVARIANT_CI_ACTION_SHA_PINNED',
+    description:
+      'GitHub Actions の uses: は full commit SHA (docker は sha256 digest) で固定する',
+    scope: (p) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(p),
+    check: ({ path: filePath, content }) => {
+      const findings: Finding[] = [];
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const finding = inspectWorkflowUsesLine(filePath, lines[i], i + 1);
+        if (finding) findings.push(finding);
       }
       return findings;
     },

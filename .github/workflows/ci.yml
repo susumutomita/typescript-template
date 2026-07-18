@@ -12,13 +12,25 @@ permissions:
   actions: read
 
 on:
+  # PR ブランチへの push で push + pull_request の二重実行を起こさないよう、
+  # push は main (= merge 後) に限定する。
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+# 同一 ref の古い実行を自動キャンセルし、押し直し分の Actions 時間を消す。
+# main は履歴として全 commit の CI 結果を残したいためキャンセルしない
+# (連続 merge で先行 commit の run が消えるのを防ぐ)。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # ハング時に課金と queue 滞留を止める上限。通常実行は数分で終わる。
+    timeout-minutes: 15
     steps:
       - name: Check out the code
         # actions/checkout v4.3.1
@@ -50,6 +62,13 @@ jobs:
           npm_config_ignore_scripts: "true"
           CI: "true"
         run: make install_ci
+
+      # Supply Chain Security: dependency lifecycle script auditor (ADR-0007)。
+      # scripts/audit-baseline.json と比較し、新規 lifecycle script 付きパッケージ /
+      # 既存依存への新規 hook 追加を検出して fail させる。実行を止める
+      # --ignore-scripts に対し、こちらは攻撃面の増加に「気づく」層。
+      - name: Audit dependency lifecycle scripts
+        run: make audit_deps
 
       - name: Run quality gates
         run: |

@@ -32,6 +32,8 @@ make before-commit              # architecture-harness + harness_test + lint_tex
 
 **すべて通らない限りタスクは未完了。** 失敗したらコードを修正する（設定ファイルや invariant を変えない）。`.claude/` 配下（スキル・フック・設定）を変更した PR では、加えて `/skill-audit` の Quick Workflow を通す。
 
+`make before-commit` は staged 差分向けの高速ゲートで、CI の完全ミラーではない。CI は追加で `make audit_deps`（依存 lifecycle script の baseline 監査、ADR-0007）と harness 全件スキャンを実行するため、before-commit 緑でも CI が落ちることがある。PR 前に CI 相当を通したいときは `make ci_local`（CI と同じ検査・同じ順序）を実行する。audit_deps はローカルの node_modules を見るため、lockfile を変更したら先に `make install` を済ませる。
+
 ゲート緑は必要条件であって完了条件ではない。完了の正本は [`docs/architecture/quality-bar.md`](docs/architecture/quality-bar.md) の Definition of Done。MVP は完了ではない。
 
 ## 作業順序（厳守）
@@ -65,6 +67,8 @@ scope 外の修正を同 PR に混ぜることは「現在の PR が CI で詰�
 | `nr typecheck` | TypeScript 型チェック |
 | `nr build` | プロダクションビルド |
 | `make before-commit` | 品質ゲート一括 |
+| `make ci_local` | CI 完全ミラー (audit_deps + harness 全件 + before-commit) |
+| `make audit_deps` | 依存 lifecycle script の baseline 監査 (ADR-0007) |
 | `make harness_test` | harness 検出ロジックのテスト |
 | `bun scripts/architecture-harness.ts` | invariant スキャン (全件) |
 | `bun scripts/architecture-harness.ts --staged --fail-on=error` | ステージ済変更のみ |
@@ -83,6 +87,8 @@ scope 外の修正を同 PR に混ぜることは「現在の PR が CI で詰�
 - **`it.only` / `describe.only` / `xit` / `xdescribe` 禁止** → コミット前に外す (`INVARIANT_NO_TEST_FOCUS`)
 - **設定ファイル (biome.json 等) を問題隠しで編集しない** → コードを直す（品質バーを上げる強化は ADR で許可）
 - **スキル・フックに隠し指示・危険実行パターンを置かない** (`INVARIANT_SKILL_NO_HIDDEN_INSTRUCTIONS` / `INVARIANT_SKILL_NO_EXFIL_EXEC`)
+- **`scripts/audit-baseline.json` を目視レビューなしで更新しない** → 対象パッケージの lifecycle script を読み、要約と理由を PR 本文に書く (`INVARIANT_DEPS_LIFECYCLE_AUDITED`)
+- **GitHub Actions の `uses:` をタグ参照に戻さない** → full commit SHA でピン留めする (`INVARIANT_CI_ACTION_SHA_PINNED`)
 - **Conventional Commits**
 - **Issue は `#番号` 引用禁止** → フル URL か `Issue 番号` で記述
 

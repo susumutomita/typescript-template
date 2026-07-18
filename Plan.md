@@ -1,5 +1,48 @@
 # Plan.md
 
+### AI 時代のクリーンコード CI プラクティス反映（依存 lifecycle 監査・SHA ピン invariant・CI ミラー） - 2026-07-18
+
+#### 目的
+
+記事「clean-code-ci-for-ai-era」（zenn.dev/singularity）で扱う AI 時代のクリーンコード / CI プラクティスを本テンプレートに反映する。実行環境のネットワークポリシーで記事本文へ到達できなかったため、同じメンテナのリファレンス実装である TenkaCloud で確立済みのプラクティスとの差分を正として移植する。反映対象は、依存 lifecycle script の baseline 監査（audit_deps）、GitHub Actions の SHA ピン留めを機械強制する invariant、CI 完全ミラー（ci_local）、CI の concurrency / timeout 強化の 4 点。
+
+#### 制約
+
+- 作業順序はドキュメント更新、テスト先行、実装、CI 接続とする。
+- 新 invariant は `docs/architecture/harness.md` と ADR-0007 を正本にする。
+- jscpd による重複 baseline ratchet は新規依存の追加を伴うため、この PR ではフォローアップに切る。
+- baseline (`scripts/audit-baseline.json`) の初回生成時は全 lifecycle script を目視レビューし、要約を PR 本文に書く。
+
+#### タスク
+
+1. harness.md、ADR-0007、AGENTS.md、README を先に更新する。
+2. `scripts/audit-dependencies.ts` をテスト先行で追加し、baseline を生成する。ネストされた node_modules も再帰スキャンする。
+3. harness に `INVARIANT_CI_ACTION_SHA_PINNED` をテスト先行で追加する。
+4. Makefile に `audit_deps` / `ci_local` を追加し、ci.yml へ監査ステップ・concurrency・timeout を接続する。
+5. 各ゲート（harness 全件、before-commit、ci_local、review、security-review、simplify）を通して PR を作成する。
+
+#### 検証手順
+
+- `bun test scripts/`
+- `bun scripts/audit-dependencies.ts`
+- `bun scripts/architecture-harness.ts --fail-on=error`
+- `make before-commit`
+- `make ci_local`
+
+#### 進捗ログ
+
+- 2026-07-18: ブランチ `claude/clean-code-ci-ai-practices-okoj4a` で作業開始。zenn.dev への到達がネットワークポリシーで拒否されたため、TenkaCloud の CI プラクティス（audit-deps / ci-local / SHA ピン運用）との差分分析で対象を確定。node_modules のネストにも lifecycle script 持ちパッケージが 6 件あることを確認し、監査スクリプトは再帰スキャンで設計。
+- 2026-07-18: 初回実装で全ゲート緑、baseline 34 件（全 script 目視レビュー済み）を生成し PR 122 をドラフト作成。
+- 2026-07-18: code-reviewer subagent の指摘を反映。(1) workspace 除外を name ベースから「リポジトリ内実体への symlink」の path 判定へ変更（name 偽装による監査回避の穴を閉鎖）、(2) baseline の shape 検証を追加し、破損は missing と区別して baseline-corrupt で fail（無レビュー再生成への誘導を防止）、(3) `uses :` 表記の bypass を regex 修正で閉鎖、(4) diff を双方向化（hook 縮小・パッケージ消滅も fail、stale 承認の再利用経路を閉鎖）、(5) cancel-in-progress を main 以外に限定、(6) 異常系・CLI 経路のテストと symlink ループ防御を追加、(7) docs の表記齟齬を同期。
+
+#### 振り返り
+
+- **問題**: `make before-commit` が緑でも CI と同じ検査が通る保証が無く、CI の Action ピン留めと依存 lifecycle の攻撃面はレビュー頼みだった。
+- **根本原因**: CI にしか無いゲートのローカルミラーが定義されておらず、サプライチェーン防御の第 3 層（攻撃面の snapshot 監査）が未実装だった。
+- **予防策**: `make ci_local` を CI の正本順序に同期させ、攻撃面は baseline 監査と harness invariant の機械強制へ寄せた。baseline / ピン更新は目視レビューと PR 本文への理由記載を必須にした。
+
+---
+
 ### 公開品質ガードと blindspot pass - 2026-07-04
 
 #### 目的

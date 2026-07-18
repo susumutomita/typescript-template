@@ -39,8 +39,10 @@ make typecheck      # tsc --noEmit（全ワークスペース）
 make test           # bun test（全ワークスペース）
 make harness_test   # architecture-harness の検出ロジックをテスト
 nr check:pre-release # 公開品質 invariant を全件スキャン
+make audit_deps     # 依存 lifecycle script の baseline 監査（ADR-0007）
 make build          # ビルド（全ワークスペース）
 make before-commit  # コミット前チェック（harness + test + 公開品質 + lint）
+make ci_local       # CI 完全ミラー（audit_deps + harness 全件 + before-commit）
 ```
 
 ## スキル
@@ -79,7 +81,9 @@ make before-commit  # コミット前チェック（harness + test + 公開品�
 - `make install` / `make install_ci` は常に `--ignore-scripts` を付ける。**Bun は `.npmrc` の `ignore-scripts` も `npm_config_ignore_scripts` 環境変数も読まない**（公式 docs では `bunfig.toml` のみが設定経路）ため、Bun を叩くコマンド側で毎回明示する必要がある。husky の `prepare` も巻き添えで止まるので `make setup-hooks` で明示的に opt-in する。
 - `bunfig.toml` の `trustedDependencies = []` で、Bun がデフォルトで信頼する「top 500 npm パッケージ」の lifecycle script もゼロにする。
 - `make before-commit` が走らせる `architecture-harness` が、Git URL 依存・lifecycle hook の濫用・IOC ファイル名・ロックファイル内の Git 解決を機械的に検出する（`INVARIANT_NO_GIT_DEPENDENCY` / `INVARIANT_LIFECYCLE_HOOK_SCOPED` / `INVARIANT_NO_KNOWN_IOC` / `INVARIANT_LOCKFILE_NO_GIT_RESOLUTION`）。
-- CI は `safe-chain` + 上記設定で重ねる。
+- `make audit_deps` が lifecycle script を持つ依存の集合を `scripts/audit-baseline.json` に固定し、新規パッケージの出現・既存依存への hook 追加を CI で検出する。実行を止める防御（上記）に対し、こちらは攻撃面の増加に「気づく」防御（`INVARIANT_DEPS_LIFECYCLE_AUDITED`、[ADR-0007](./docs/adr/0007-ci-supply-chain-gates.md)）。
+- GitHub Actions の `uses:` は full commit SHA でピン留めし、`architecture-harness` が機械強制する（`INVARIANT_CI_ACTION_SHA_PINNED`）。
+- CI は `safe-chain` + 上記設定で重ねる。CI と同じ検査は `make ci_local` でローカル再現できる。
 - `.npmrc` は **意図的に置かない**。Bun は読まないので Bun の防御には寄与せず、「効いていそうで効いていない」security theater になるため。本テンプレートは Bun 専用。pnpm/npm/yarn を併用する派生プロジェクトは自分で `.npmrc` を足す。
 
 設計判断の正本は [ADR-0001](./docs/adr/0001-supply-chain-hardening.md)、invariant 一覧は [docs/architecture/harness.md](./docs/architecture/harness.md) を参照。
