@@ -73,6 +73,14 @@ architecture_harness:
 harness_test:
 	bun test scripts/
 
+.PHONY: audit_deps
+# 依存 lifecycle script の攻撃面を scripts/audit-baseline.json に固定し、新規
+# パッケージ / 新規 hook の出現を検出する (INVARIANT_DEPS_LIFECYCLE_AUDITED /
+# ADR-0007)。baseline 更新は `bun scripts/audit-dependencies.ts --update` +
+# 対象 script の目視レビュー + PR 本文への理由記載をセットで行う。
+audit_deps:
+	bun scripts/audit-dependencies.ts
+
 .PHONY: pre_release_check
 pre_release_check:
 	bun run check:pre-release
@@ -82,6 +90,15 @@ pre_release_check:
 # 既定ゲートには含めない。利用プロジェクト側で `before-commit: ... typecheck test build` のように
 # 拡張するか、"no script ならスキップ" 型 runner を用意して取り込むこと。
 before-commit: architecture_harness harness_test pre_release_check lint_text lint
+
+.PHONY: ci_local
+# CI (.github/workflows/ci.yml) が実行する検査を同じ順序でローカル再現する
+# 完全ミラー (install は除く)。before-commit は staged 差分向けの高速ゲートで、
+# audit_deps と harness 全件スキャンを含まないため、before-commit 緑は CI 緑を
+# 保証しない。PR 前に CI 相当を通したいときはこちらを使う (ADR-0007)。
+ci_local: audit_deps
+	bun scripts/architecture-harness.ts --fail-on=error
+	$(MAKE) before-commit
 
 .PHONY: dev
 dev:

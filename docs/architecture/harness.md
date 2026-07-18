@@ -26,6 +26,10 @@
   `bun.lock` / `package-lock.json` / `pnpm-lock.yaml` などのロックファイルに git / github で解決された依存が無いことを保証する。`bun.lockb` (バイナリ) は静的検査困難として警告。
 - `INVARIANT_SUPPLY_CHAIN_CONFIG_PRESENT`
   `bunfig.toml` に `trustedDependencies = []` が明示されていることを確認する。Bun が暗黙信頼する「top 500 npm パッケージ」の lifecycle script をゼロにする。`.npmrc` は Bun が読まないため意図的に置かない (security theater の排除)。詳細は [ADR-0001](../adr/0001-supply-chain-hardening.md) を参照。
+- `INVARIANT_DEPS_LIFECYCLE_AUDITED`
+  install 時に発火する lifecycle script (preinstall / install / postinstall / preprepare / prepare / postprepare) を持つ依存パッケージの集合を `scripts/audit-baseline.json` に snapshot として固定し、新規パッケージの出現と既存依存への hook 追加を差分検出する。`--ignore-scripts` と `trustedDependencies = []` が「実行させない」防御であるのに対し、この監査は「攻撃面が増えたことに気づく」防御 (第 3 層)。検出は harness ではなく `scripts/audit-dependencies.ts` (`make audit_deps`、CI と `make ci_local` から実行) が担う。baseline の更新 (`--update`) は対象 lifecycle script の目視レビューと PR 本文への理由記載を必須とする。詳細は [ADR-0007](../adr/0007-ci-supply-chain-gates.md) を参照。
+- `INVARIANT_CI_ACTION_SHA_PINNED`
+  `.github/workflows/*.yml` の `uses:` は full-length commit SHA (40 桁 hex) で固定する (error)。`@v4` のようなタグやブランチ参照は、タグ付け替え型のサプライチェーン攻撃 (2025 年の tj-actions/changed-files 事件が典型) の入口になる。`docker://` 参照は `@sha256:` digest で固定する。リポジトリ内のローカル参照 (`./` 始まり) は対象外。詳細は [ADR-0007](../adr/0007-ci-supply-chain-gates.md) を参照。
 - `INVARIANT_SKILL_FRONTMATTER_VALID`
   `.claude/skills/<dir>/SKILL.md` は YAML frontmatter に `name` と `description` を持ち、`name` はディレクトリ名と一致させる (スキル名は公開 API。リネームは breaking change)。`description` は 50 文字以上 1024 文字以下で、トリガー語彙と「いつ使うか」を明示する。曖昧な description はスキルの誤発火 (trigger abuse) を招くため warning で検出する。詳細は [ADR-0002](../adr/0002-skill-audit-invariants.md) を参照。
 - `INVARIANT_AGENT_FRONTMATTER_VALID`
@@ -69,7 +73,7 @@
 - `ONE_PASS_LOCAL`
   代表的な機能を 1 本、データ層 → API → UI → テストまで一気通貫でローカル動作させる。途中の "見た目だけ動く" や "API は通るけど UI 未実装" は完了扱いにしない。詳細は `Plan.md` の「検証手順」に書く。
 - `ONE_PASS_CI`
-  CI が green になるまで PR は完了扱いにしない。`make before-commit` で通ったものが CI でも通ること。
+  CI が green になるまで PR は完了扱いにしない。`make before-commit` は staged 差分向けの高速ゲートで、CI が追加で実行する `make audit_deps` と harness 全件スキャンを含まない。CI と同じ検査を同じ順序でローカル再現するには `make ci_local` を使う。
 
 ## Banned Assumptions
 
@@ -85,6 +89,7 @@
 
 - `bun scripts/architecture-harness.ts --staged --fail-on=error`
 - `make before-commit`
+- `make audit_deps` (`INVARIANT_DEPS_LIFECYCLE_AUDITED` の検出器。CI と `make ci_local` から実行)
 - `.claude/settings.json` の hooks (rm -rf 等の危険コマンドブロック、リンター設定編集ブロック、PreCompact 状態保存)
 
 ## Harness Commands
@@ -93,6 +98,7 @@
 - リポジトリ全体スキャン: `bun scripts/architecture-harness.ts`
 - 公開品質ルールだけを全件スキャン: `bun scripts/architecture-harness.ts --pre-release --fail-on=error`
 - PR 直前の総合ゲート: `make before-commit` (詳細は `CLAUDE.md` の「ゲート」)
+- CI の完全ミラー: `make ci_local` (audit_deps → harness 全件 → before-commit)
 
 全件スキャンは Claude Code が作るローカル専用の `.claude/worktrees/` を除外する。
 各 worktree は別の Git checkout としてそれぞれ検査し、親 checkout から複製内容を

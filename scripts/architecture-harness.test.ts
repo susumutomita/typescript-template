@@ -461,6 +461,89 @@ describe('INVARIANT_NO_TYPE_ESCAPE_HATCH', () => {
   });
 });
 
+describe('INVARIANT_CI_ACTION_SHA_PINNED', () => {
+  const r = rule('INVARIANT_CI_ACTION_SHA_PINNED');
+  const WF = '.github/workflows/ci.yml';
+  const SHA = 'a'.repeat(40);
+
+  it('.github/workflows 配下の yml / yaml だけを対象にする', () => {
+    expect(r.scope(WF)).toBe(true);
+    expect(r.scope('.github/workflows/deploy.yaml')).toBe(true);
+    expect(r.scope('.github/dependabot.yml')).toBe(false);
+    expect(r.scope('docs/ci.yml')).toBe(false);
+  });
+
+  it('タグ参照の uses を error にする', () => {
+    const findings = r.check({
+      path: WF,
+      content: '      - uses: actions/checkout@v4\n',
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('error');
+    expect(findings[0]?.rule).toBe('INVARIANT_CI_ACTION_SHA_PINNED');
+  });
+
+  it('ブランチ参照と短縮 SHA も error にする', () => {
+    expect(
+      r.check({ path: WF, content: 'uses: someorg/action@main\n' })
+    ).toHaveLength(1);
+    expect(
+      r.check({ path: WF, content: `uses: someorg/action@${'a'.repeat(7)}\n` })
+    ).toHaveLength(1);
+  });
+
+  it('full-length commit SHA なら findings を出さない', () => {
+    const content = [
+      `      - uses: actions/checkout@${SHA}`,
+      `      - name: Setup`,
+      `        uses: oven-sh/setup-bun@${SHA}`,
+    ].join('\n');
+    expect(r.check({ path: WF, content })).toHaveLength(0);
+  });
+
+  it('reusable workflow 呼び出しも SHA を要求する', () => {
+    expect(
+      r.check({
+        path: WF,
+        content: 'uses: org/repo/.github/workflows/x.yml@v1\n',
+      })
+    ).toHaveLength(1);
+    expect(
+      r.check({
+        path: WF,
+        content: `uses: org/repo/.github/workflows/x.yml@${SHA}\n`,
+      })
+    ).toHaveLength(0);
+  });
+
+  it('ローカル action 参照 (./ 始まり) は対象外にする', () => {
+    expect(
+      r.check({ path: WF, content: 'uses: ./.github/actions/setup\n' })
+    ).toHaveLength(0);
+  });
+
+  it('docker 参照は sha256 digest を要求する', () => {
+    expect(
+      r.check({ path: WF, content: 'uses: docker://alpine:3.20\n' })
+    ).toHaveLength(1);
+    expect(
+      r.check({
+        path: WF,
+        content: `uses: docker://alpine@sha256:${'b'.repeat(64)}\n`,
+      })
+    ).toHaveLength(0);
+  });
+
+  it('コメント行や uses 以外の行は無視する', () => {
+    const content = [
+      '# uses: actions/checkout@v4',
+      '  # uses: actions/checkout@v4',
+      'run: echo "uses: actions/checkout@v4"',
+    ].join('\n');
+    expect(r.check({ path: WF, content })).toHaveLength(0);
+  });
+});
+
 describe('公開品質ルール', () => {
   const TSX = 'packages/frontend/src/App.tsx';
   const HTML = 'packages/frontend/index.html';
