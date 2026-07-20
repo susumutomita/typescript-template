@@ -5,7 +5,12 @@
   "description": "複雑な課題で独立した探索系統、証拠、正確な不足、停止と再開条件を管理する。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["task", "acceptanceCriteria", "approaches", "selectedApproachIds"],
+  "required": [
+    "task",
+    "acceptanceCriteria",
+    "approaches",
+    "selectedApproachIds"
+  ],
   "properties": {
     "task": {
       "type": "string",
