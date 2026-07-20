@@ -1,64 +1,94 @@
 # Steering Mechanisms（統制機構の使い分け）
 
-このリポジトリには Claude Code を統制する機構が複数ある。Hook / CLAUDE.md（AGENTS.md import 含む）/ Skill / Subagent / path-scoped Rule / 決定論的 harness の 6 つである。本書はそれぞれを「いつ・何に使うか」で配分する正本である。配分を誤ると、常時ロードされる文脈が肥大して薄まり、機械で止められるはずの違反が人間のレビュー頼みになる。設計判断の根拠は [ADR-0004](../adr/0004-steering-mechanism-alignment.md)。
+このリポジトリは、AI エージェントを「文章でお願いする」だけでは統制しない。
 
-機構の選定モデルは Anthropic の記事「Steering Claude Code: skills, hooks, rules, subagents, and more」の配分原則を、本テンプレートの実体にマッピングしたものである。
+判断原則、決定論的強制、状況依存の手順、独立探索、敵対的監査を別の機構へ配置する。配分を誤ると、常時ロードされる文脈が肥大し、機械で止められる違反がモデルの遵守頼みになり、逆に意味論的な判断を壊れやすい正規表現へ押し込むことになる。
+
+判断原則は [principles.md](./principles.md)、機械強制の索引は [enforcement-registry.md](./enforcement-registry.md)、設計判断の根拠は [ADR-0004](../adr/0004-steering-mechanism-alignment.md) を参照する。
 
 ## 判断フロー
 
-新しい統制（ルール・手順・チェック・知識）を足すとき、上から順に当てはめる。最初に当てはまった機構に置く。
+新しい統制、知識、手順、検査を追加するときは、上から順に判断する。
 
-1. 常時かつ決定論的に強制したい（守られたか機械で判定できる）か。→ Hook または決定論的 harness。人間にもモデルにも判断を委ねない。
-2. 常時モデルの文脈に在ってほしい不変の方針・用語・作業順序か。→ CLAUDE.md / AGENTS.md。ただし owner が中身を把握できる範囲に保ち、肥大させない。
-3. 特定の状況で踏む手順・サブコマンドを持つ操作か。→ Skill。description が発火条件、本体が手順。
-4. 並列に隔離して走らせ、最終結果だけを親に戻したい作業か。→ Subagent。中間生成物で親の文脈を汚さない。
-5. 特定のパスで作業するときだけ効かせたいルールか。→ path-scoped Rule。`.claude/rules/*.md` の frontmatter `paths` で限定する。
+1. **同じ入力に対して決定論的に真偽を判定できるか。**
+   - できる → linter、harness、hook、test、CI のいずれかへ置く。
+   - 散文だけで禁止しない。
+2. **未知の状況で、証拠を比較して選択するための安定した判断軸か。**
+   - そうである → Principle Registry へ置く。
+3. **常時モデルの文脈に必要な製品事実、権限境界、作業の入口か。**
+   - そうである → CLAUDE.md または AGENTS.md へ最小限置く。
+4. **特定状況で踏む手順、状態遷移、サブコマンドか。**
+   - そうである → Skill へ置く。
+5. **独立した文脈で探索、レビュー、反証、障害調査をさせるか。**
+   - そうである → Subagent へ置く。
+6. **特定パスで作業するときだけ必要か。**
+   - そうである → path-scoped Rule へ置く。
+7. **ツール実行の直前、直後、セッション境界で必ず反応するか。**
+   - そうである → Hook へ置く。
 
-このフローの含意として、「特定パスでだけ効くルール」や「毎回 X をしたら必ず Y をする」を常時ロードの CLAUDE.md に書くのはアンチパターンである（後述）。
+## 各機構の責務
 
-## 各機構の本リポジトリでの実装箇所
-
-| 機構 | 役割 | 本リポジトリの実装箇所 |
+| 機構 | 役割 | 実装場所 |
 | --- | --- | --- |
-| 決定論的 harness | 機械可読な invariant の全件・差分スキャン。守られたかを真偽で判定する正本 | `scripts/architecture-harness.ts`（検出ロジック）、`scripts/architecture-harness.test.ts`（検出のテスト）、`docs/architecture/harness.md`（invariant の文章正本） |
-| Hook | ツール実行の前後・セッション境界で決定論的に走るシェル | `.claude/settings.json` の `hooks`（PreToolUse の危険コマンド・設定ファイル編集ブロック、PostToolUse の Biome 自動修正・テストスタイル確認、Stop / SessionStart / PreCompact）、`.claude/scripts/*.sh`（`check-test-style.sh`、`follow-up-reminder.sh`、`stop-gate-reminder.sh`） |
-| CLAUDE.md / AGENTS.md | 常時ロードされる不変の方針・ツールスタック・作業順序・制約 | `CLAUDE.md`（Claude Code 固有の運用ルール。`AGENTS.md` を import）、`AGENTS.md`（ツールスタック・品質ゲート・制約の共通正本） |
-| Skill | 状況に応じて踏む手順とサブコマンド。description が発火条件 | `.claude/skills/<name>/SKILL.md`（`feature`、`architecture-harness`、`follow-up`、`skill-audit`、`init-project`） |
-| Subagent | 並列・隔離実行し最終結果のみ親へ戻す | `.claude/skills/feature/SKILL.md` のフェーズ 4 が Agent ツールで 5 役割（PM / Designer / Developer / QA / User）を同時起動する。専用の `.claude/agents/*.md` 定義は現状置かず、`/feature` のオーケストレーションに集約している |
-| path-scoped Rule | 特定パスで作業するときだけ自動でロードされるルール | `.claude/rules/*.md`（frontmatter の `paths` でスコープ限定。`quality-bar.md` は `packages/`・`src/`・`scripts/`、`skill-authoring.md` は `.claude/skills/`・`.claude/scripts/`） |
+| Principle Registry | 未知の状況で使う判断原則。証拠、探索、gap、監査、完了の基準 | `docs/architecture/principles.md` |
+| Enforcement Registry | 機械強制 rule と対応 principle の索引 | `docs/architecture/enforcement-registry.md` |
+| 決定論的 harness | リポジトリ状態と差分が invariant に反していないか真偽で判定 | `scripts/architecture-harness.ts`、`scripts/architecture-harness.test.ts`、`docs/architecture/harness.md` |
+| Hook | tool event と session boundary で決定論的に実行 | `.claude/settings.json`、`.claude/scripts/*.sh` |
+| CLAUDE.md / AGENTS.md | 常時必要な製品事実、権限境界、作業入口 | `CLAUDE.md`、`AGENTS.md` |
+| Skill | 状況依存のワークフロー、状態遷移、サブコマンド | `.claude/skills/<name>/SKILL.md` |
+| Subagent | 独立探索、敵対的監査、レビュー、デバッグ | `.claude/agents/*.md` |
+| path-scoped Rule | 特定パスでだけ必要な authoring、test、document 規律 | `.claude/rules/*.md` |
+| ADR | invariant と原則の変更理由、例外、移行 | `docs/adr/NNNN-*.md` |
 
-決定論的 harness と Hook は近いが役割が違う。harness は「リポジトリの状態（コミット・差分）が invariant に反していないか」をスキャンする。Hook は「ツール呼び出しというイベント」に反応して走る。両者は補完関係で、harness の判定を PR 直前ゲートと Stop hook の双方から呼ぶ。
+## Adaptive orchestration
 
-## この成果物はどの機構に置くべきか（早見表）
+複雑な課題で subagent を使う場合、人数と役割を固定しない。
 
-| 置きたいもの | 置く機構 | 本リポジトリの例 |
+`/feature` は次を行う。
+
+1. 問題、受け入れ条件、非目標、必要な証拠を形式化する。
+2. approach family、hypothesis、evidence、exact gap、status、retry condition を登録する。
+3. 初期段階では有力案を大部分の探索 agent へ知らせず、独立性を保つ。
+4. 同じ family が増えた場合は未探索の系統へ再配分する。
+5. 候補案を生成者とは別の adversarial auditor が壊す。
+6. 生き残った案だけを TDD で working increment として実装する。
+7. 受け入れ条件、remaining gap、監査、機械ゲートを通して完了を判定する。
+
+単純な修正を無理に multi-agent 化しない。複雑な変更を固定 role play にしない。
+
+## 配置例
+
+| 置きたいもの | 置く機構 | 例 |
 | --- | --- | --- |
-| 「`npx` を使わせない」のような機械判定できる禁止 | 決定論的 harness（invariant） | `INVARIANT_NO_NPX` |
-| 危険コマンド・設定ファイル編集を実行前に止める | Hook（PreToolUse） | `.claude/settings.json` の `rm -rf` / `biome.json` 編集ブロック |
-| コード変更後に必ずフォーマッタを当てる | Hook（PostToolUse） | `bunx biome check --write` |
-| セッション開始・終了時のリマインド | Hook（SessionStart / Stop） | `follow-up-reminder.sh` / `stop-gate-reminder.sh` |
-| ツールスタック・品質ゲートの順序・常時守る制約 | CLAUDE.md / AGENTS.md | `AGENTS.md` の「ツールスタック」「品質ゲート」「制約」 |
-| サブコマンドを持つ反復手順 | Skill | `/follow-up add`、`/architecture-harness why <RULE_ID>` |
-| ユーザーが明示的にだけ起動する操作 | Skill（`disable-model-invocation: true`） | `/init-project` |
-| 並列に視点を分けて走らせ結果を統合する作業 | Subagent | `/feature` フェーズ 4 の 5 役割 |
-| `packages/`・`src/`・`scripts/` でだけ効かせたい品質基準 | path-scoped Rule | `.claude/rules/quality-bar.md` |
-| `.claude/` 配下でだけ効かせたい authoring 規律 | path-scoped Rule | `.claude/rules/skill-authoring.md` |
-| 設計判断の記録（不変・追記型） | ADR | `docs/adr/NNNN-*.md` |
-
-迷ったら「機械で守れるか」を先に問う。守れるなら harness か Hook に寄せ、文章は薄く保つ。重さは機械強制に寄せ、文章は蒸留するのが原則である。
+| 「確信ではなく再現可能な証拠を優先する」 | Principle | `PRINCIPLE_EVIDENCE_OVER_CONFIDENCE` |
+| 「`npx` を使わせない」 | Harness | `INVARIANT_NO_NPX` |
+| 危険コマンドを実行前に止める | Hook | PreToolUse guard |
+| コード変更後に formatter を実行する | Hook | PostToolUse |
+| 複雑な新機能の探索、選択、実装 | Skill | `/feature` |
+| 候補設計を独立に攻撃する | Subagent | `adversarial-auditor` |
+| テストファイルだけで有効な BDD 規則 | path-scoped Rule | `.claude/rules/test-authoring.md` |
+| invariant の例外と代替防御 | ADR | superseding ADR |
 
 ## アンチパターン
 
-- パス固有ルールを常時ロードの CLAUDE.md に書く。`packages/` でだけ効く品質基準を CLAUDE.md に置くと、`.claude/` を触っているだけのセッションでも文脈を消費し、全体が薄まる。path-scoped Rule（`.claude/rules/*.md` の `paths`）に置く。本リポジトリでは品質バーを `.claude/rules/quality-bar.md` に切り出し済みである。
-- 「毎回 X したら必ず Y する」を CLAUDE.md の散文で書く。常時かつ決定論的な要求はモデルの遵守に頼らず Hook で強制する。コード変更後のフォーマットは PostToolUse hook、セッション境界のリマインドは SessionStart / Stop hook が担う。
-- 機械判定できる禁止を散文の「お願い」で済ませる。`npx` 禁止のような真偽判定できるものは invariant にして harness で止める。散文だけだと違反が CI 前に検出されない。
-- CLAUDE.md を肥大させて owner が中身を見失う。常時ロードの文脈は希少資源である。手順は Skill、パス固有は Rule、機械強制は Hook / harness に逃がし、CLAUDE.md には不変の骨子だけ残す。本リポジトリの CLAUDE.md / AGENTS.md は重複定義を避けるため、制約の正本を AGENTS.md に一本化し、CLAUDE.md からは再掲せず import している。
-- Subagent の中間生成物を親の文脈に流し込む。並列実行の価値は隔離にある。親へ戻すのは最終結果だけにし、各サブエージェントの試行錯誤で親の文脈を汚さない。
-- invariant 違反をコードでなく設定や invariant の緩和で消す。harness が止めたら直す対象はコードである。invariant の緩和・廃止は ADR で明示的に supersede する（`INVARIANT_HARNESS_DOC_AUTHORITATIVE`）。
+- 機械判定可能な禁止を CLAUDE.md の散文だけで済ませる。
+- 原則を曖昧な精神論として増やし、具体的な証拠や判断方法を定義しない。
+- 意味解析が必要な品質を壊れやすい正規表現で error 化する。
+- 常に同じ人数、同じ役割の subagent を起動する。
+- 全探索 agent へ最初から有力案を共有して独立性を失う。
+- status report や楽観論を evidence として扱う。
+- blocked route を新しい mechanism なしに再実行する。
+- Subagent の試行錯誤を親の文脈へすべて流し込む。
+- invariant 違反をコードでなく設定や rule の緩和で消す。
+- CLAUDE.md を肥大させ、owner が正本を把握できなくする。
 
-## 関連ドキュメント
+## 正本の優先順位
 
-- 機械可読 invariant の正本: [harness.md](./harness.md)
-- 完了の品質定義: [quality-bar.md](./quality-bar.md)
-- 本配分の設計判断: [ADR-0004](../adr/0004-steering-mechanism-alignment.md)
-- スキル authoring 規律: [ADR-0002](../adr/0002-skill-audit-invariants.md)、`.claude/rules/skill-authoring.md`
+- 判断原則: `principles.md`。
+- 機械強制の意図と索引: `enforcement-registry.md`。
+- invariant の文章仕様: `harness.md`。
+- 検出結果: harness、linter、test、CI。
+- 状況依存の実行手順: Skill。
+- 設計変更と例外: ADR。
+
+同じ rule の説明を複数箇所へ手書きで複製しない。参照または生成可能な索引へ寄せ、正本 drift を減らす。
