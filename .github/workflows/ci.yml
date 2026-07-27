@@ -70,7 +70,19 @@ jobs:
       - name: Audit dependency lifecycle scripts
         run: make audit_deps
 
-      - name: Run quality gates
-        run: |
-          bun scripts/architecture-harness.ts --fail-on=error
-          make before-commit
+      # 各ゲートを個別 step に分け、どの enforcement が失敗したかを Actions UI で
+      # 直接判別できるようにする。Makefile の before-commit と同じ順序を保つ。
+      - name: Run architecture harness
+        run: bun scripts/architecture-harness.ts --fail-on=error
+
+      - name: Test architecture harness
+        run: make harness_test
+
+      - name: Run pre-release checks
+        run: make pre_release_check
+
+      - name: Lint documentation
+        run: make lint_text
+
+      - name: Lint and format check
+        run: make lint
