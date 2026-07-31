@@ -1,33 +1,33 @@
 # Quality Bar（Definition of Done）
 
-完了の正本。`harness.md` が「やってはいけないこと」を機械で止め、本書は「満たすべき品質」を定義する。根本原因分析と判断は [ADR-0003](../adr/0003-quality-first-no-mvp.md)。
-
-## 原則
-
-- MVP は完了ではない。プロがそのまま使える品質で初回から出して完了。
-- シンプルさは手抜きではない。考え抜いた最善の構成が結果そう見えること。最初に動いた構造を採用しない。
-- 手抜きは結局すべて書き直し。最初から正しく作るほうが速い。
-
-## 着手前（設計ゲート）
-
-実装前に設計を残す。新機能は `docs/design/[日付]-[名前].md`、小変更は `Plan.md` に。代替案 2 案以上の比較・選定理由・データの流れと責務・エッジケース。考えずに書いて後で直すを禁止する。
+完了は手順の遵守ではなく、受け入れ条件を満たしたことを再現可能な証拠で示せる状態です。architecture harness は決定論的な違反を止め、本書は成果物の品質を定義します。
 
 ## Definition of Done
 
-- 単一責務・重複なし・依存は一方向・命名が意図を語る。
-- 型で守る。`any`・型エスケープ・非 null アサーションに逃げない。外部入力は境界で検証する。
-- 全失敗経路を型付きエラーで処理する。境界値・空・異常系を網羅し、握りつぶさない。
-- やり残し（作業中マーカー・未実装 throw・仮実装・デッドコード）を残さない。
-- テストを先に書く（Red → Green → Refactor）。BDD 日本語。正常・異常・境界を網羅。カバレッジ 100%。
-- UI はローディング・エラー・空・成功の全状態と WCAG 2.1 AA を満たす。
-- 秘匿値・モデル ID は設定に切り出す。ログに秘匿値を残さない。
+- 利用者から観測できる振る舞いが受け入れ条件を満たす。
+- 変更範囲の型、エラー、権限、境界値、後方互換性を扱う。
+- production code に仮実装、暗黙の mock fallback、握りつぶした失敗、不要な重複を残さない。
+- UI 変更では loading、empty、error、success と関連する accessibility を確認する。
+- 秘密情報をコード、ログ、fixture、PR 本文へ出さない。
+- 変更に最も近い検証を実行し、CI の required checks を通す。
+- 未検証の外部条件が残る場合は、検証済みであるかのように扱わず、影響と確認方法を明記する。
 
-## 何で守るか
+## テスト戦略
 
-linter で取れるものは linter で取る。客観シグナルを次のように分担して error で止める。
+テスト方式は変更のリスクと境界に合わせて選びます。
 
-- Biome（AST、堅牢）: `any`/`as any`（`noExplicitAny`）・空 catch/空ブロック（`noEmptyBlockStatements`）・`@ts-ignore`（`noTsIgnore`）・複雑度・未使用変数/import・`console` 残骸。
-- harness（linter に対応ルールが無いものだけ）: 作業中マーカー・未実装 throw（`INVARIANT_NO_MVP_PLACEHOLDER`）、`as unknown as`・`@ts-nocheck`/`@ts-expect-error`（`INVARIANT_NO_TYPE_ESCAPE_HATCH`）、モックデータ（`INVARIANT_NO_MOCK_DATA`）。
-- カバレッジ 100%: `bun test --coverage` + `bunfig.toml` の閾値。
+- pure logic は unit test、コンポーネント間契約は integration test、利用者フローは end-to-end または preview で検証する。
+- 外部サービスや不安定な I/O は test double で制御してよい。実接続でしか確認できない契約は、別の integration または one-time verification を用意する。
+- coverage は盲点を発見する指標であり、品質そのものではない。既存の CI 閾値は守りつつ、数値目的の無意味な assertion を増やさない。
+- テストの言語、TDD の順序、mock の有無を一律に固定しない。回帰を最も確実かつ安価に検出する構成を選ぶ。
 
-判断が要るもの（設計の良し悪し・命名・エッジケース網羅）は設計ゲートと `/review` で担保する。ゲート緑は必要条件であって完了条件ではない。
+## Not completion criteria
+
+次は単独では完了条件になりません。
+
+- `Plan.md` や設計文書を作ったこと。
+- 特定の Skill、review、subagent を実行したこと。
+- 固定の開発順序や role play を消化したこと。
+- lint、coverage、CI の数値だけが緑で、受け入れ条件を直接確認していないこと。
+
+複雑な設計判断は文書化してよいが、文書は必要性から作り、すべての変更へ課す儀式にはしません。
