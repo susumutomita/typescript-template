@@ -1,118 +1,59 @@
 # AGENTS.md
 
-AI エージェント (Claude Code, Codex 等) 向けの共通作業ガイド。Claude Code は `CLAUDE.md` がこのファイルを import して読み込む。
+AI エージェント向けの作業契約です。手順を細かく固定せず、目的、変更境界、検証可能な完了条件を共有します。
 
-## ツールスタック
+## Repository
 
-| 用途 | ツール |
-| --- | --- |
-| ランタイム/パッケージマネージャー | Bun |
-| バックエンド | Hono |
-| フロントエンド | Vite + React |
-| リンター/フォーマッター | Biome (`biome.json`) |
-| テスト | `bun test` |
-| パッケージ操作 | ni (`nr` = run, `ni` = install, `nlx` = exec) |
-
-## セットアップ
+Bun と TypeScript を使うプロジェクトテンプレートです。既定の構成は Hono、Vite、React、Biome、Bun test です。
 
 ```bash
-make install      # 依存関係インストール（Bun、--ignore-scripts）
-make dev          # 開発サーバ起動
+make install
+make dev
 ```
 
-## 品質ゲート (PR 作成前に必須、この順序で)
+## Working contract
+
+- 依頼、Issue、既存コード、テストから目的と受け入れ条件を把握する。リポジトリから解決できる曖昧さは自分で調べる。
+- 変更前に関連実装、共有 helper、履歴、既存テストを検索する。新しい仕組みを足す前に、削除または既存機構の再利用を検討する。
+- 方法はタスクに合わせて選ぶ。`Plan.md`、専用 Skill、固定 role、固定人数の subagent、文書先行、TDD の順序は必須ではない。
+- 最小の差分ではなく、最小の一貫した working increment を作る。利用者から観測できない scaffolding だけを完了としない。
+- 複雑な課題では複数案を比較してよい。単純な修正を儀式や multi-agent 化で膨らませない。
+- 作業途中で承認待ちにしない。不可逆な判断または外部副作用を除き、実装、検証、PR まで進める。
+
+## Guardrails
+
+- `.env`、秘密情報、認証情報を読み書きしない。
+- production deploy、release、データ削除、force-push、保護ブランチへの直接 push などの不可逆操作は、明示的な承認なしに行わない。
+- チェックを通すためだけにテスト、型、lint、harness、設定を弱めない。設定自体が根本原因なら、理由と検証を伴って変更してよい。
+- エラーを空値、固定データ、偽の成功へ変換して隠さない。
+- 依存関係、GitHub Actions、`.claude/` の変更はサプライチェーン境界として扱う。
+
+## Verification
+
+モデルが自分で成否を判定できる検証手段を先に見つける。テスト、型検査、実行結果、スクリーンショット比較、再現手順など、変更に最も近い証拠を使う。
+
+- unit、integration、end-to-end、preview をリスクに応じて組み合わせる。
+- 外部 API、時刻、ファイル、プロセスなど不安定な境界では test double を使ってよい。production code に暗黙の mock fallback を入れない。
+- バグ修正は失敗を再現し、修正後に同じ経路で消えたことを確認する。
+- 重複した低価値テストを増やすより、受け入れ条件と失敗モードを直接検証する。
+
+PR 前の標準ゲート:
 
 ```bash
-bun scripts/architecture-harness.ts --staged --fail-on=error
-make before-commit              # architecture-harness + harness_test + lint_text + lint
-/review                         # コードレビュー
-/security-review                # セキュリティレビュー
-/simplify                       # 重複・品質・効率
+make before-commit
 ```
 
-**すべて通らない限りタスクは未完了。** 失敗したらコードを修正する（設定ファイルや invariant を変えない）。`.claude/` 配下（スキル・フック・設定）を変更した PR では、加えて `/skill-audit` の Quick Workflow を通す。
+依存、CI、harness、lockfile を変更した場合、または CI と同じ検査が必要な場合:
 
-`make before-commit` は staged 差分向けの高速ゲートで、CI の完全ミラーではない。CI は追加で `make audit_deps`（依存 lifecycle script の baseline 監査、ADR-0007）と harness 全件スキャンを実行するため、before-commit 緑でも CI が落ちることがある。PR 前に CI 相当を通したいときは `make ci_local`（CI と同じ検査・同じ順序）を実行する。audit_deps はローカルの node_modules を見るため、lockfile を変更したら先に `make install` を済ませる。
+```bash
+make ci_local
+```
 
-ゲート緑は必要条件であって完了条件ではない。完了の正本は [`docs/architecture/quality-bar.md`](docs/architecture/quality-bar.md) の Definition of Done。MVP は完了ではない。
+PR 本文には変更内容、実行した検証、残るリスクまたは未検証事項を書く。Skill による review は必要なときだけ追加し、決定論的ゲートの代わりにしない。
 
-## 作業順序（厳守）
+## Sources of truth
 
-1. **ドキュメント更新** — 関連する docs/、ADR、CLAUDE.md を先に更新する。
-2. **リファクタリング** — 既存の技術的負債を先に解消する。
-3. **機能追加** — 上 2 つが終わってから着手する。
-
-ハーネス invariant の正本は [`docs/architecture/harness.md`](./docs/architecture/harness.md)。`Codex` と `Claude Code` のどちらでも、この script を通らない変更は未完了として扱う。
-
-## フォローアップタスクの扱い
-
-PR 作業中に scope 外の発見をしたら、その場で実装しない。
-
-1. **`/follow-up add <タイトル>`** スキルで `.claude/state/follow-ups.jsonl` に記録する。
-2. TodoWrite/TaskCreate で `[フォローアップ]` プレフィックス付きタスクも作る。
-3. PR 作成時に **`/follow-up list-pr-body`** の出力を PR 本文の「Known follow-ups」節に貼る。
-4. 別 PR で処理する。解消したら **`/follow-up resolve <id> <pr-url>`** で記録。
-
-scope 外の修正を同 PR に混ぜることは「現在の PR が CI で詰まる原因になっている」場合のみ許可する。
-
-セッション開始時 (SessionStart hook) と作業終了時 (Stop hook) に、未処理フォローアップ件数とゲート確認を Claude に通知する仕組みが入っている (`.claude/scripts/{follow-up,stop-gate}-reminder.sh`)。
-
-## コマンド一覧
-
-| コマンド | 用途 |
-| --- | --- |
-| `ni` | 依存関係インストール |
-| `nr dev` | 開発サーバ起動 |
-| `nr test` | テスト実行 |
-| `nr typecheck` | TypeScript 型チェック |
-| `nr build` | プロダクションビルド |
-| `make before-commit` | 品質ゲート一括 |
-| `make ci_local` | CI 完全ミラー (audit_deps + harness 全件 + before-commit) |
-| `make audit_deps` | 依存 lifecycle script の baseline 監査 (ADR-0007) |
-| `make harness_test` | harness 検出ロジックのテスト |
-| `bun scripts/architecture-harness.ts` | invariant スキャン (全件) |
-| `bun scripts/architecture-harness.ts --staged --fail-on=error` | ステージ済変更のみ |
-
-## subagent と path-scoped rule
-
-専用コンテキストで動く subagent を `.claude/agents/` に同梱する。コードレビューは [`.claude/agents/code-reviewer.md`](./.claude/agents/code-reviewer.md)、障害調査は [`.claude/agents/debugger.md`](./.claude/agents/debugger.md) を使う。パス固有の規則は常時ロードのコンテキストではなく path-scoped rule（`.claude/rules/`）に置く。各機構の役割分担は [`docs/architecture/steering.md`](./docs/architecture/steering.md) を正本とする。
-
-## 制約 (破ったら即修正)
-
-- **`npx` 禁止** → `bunx` または `nlx` を使う (`INVARIANT_NO_NPX`)
-- **`rm` コマンド禁止** → `git rm` または手で削除依頼
-- **モックデータ・スタブ API 禁止** → Real DB / Real API を使う (`INVARIANT_NO_MOCK_DATA`)
-- **MVP・仮実装で完了としない** → 作業中マーカー・未実装 throw を残さない (`INVARIANT_NO_MVP_PLACEHOLDER`)。空 catch と `any` は Biome が拾う
-- **型エスケープ禁止** → `as unknown as`・`@ts-nocheck`・`@ts-expect-error` に逃げない (`INVARIANT_NO_TYPE_ESCAPE_HATCH`)。`as any`・`@ts-ignore` は Biome が拾う
-- **`it.only` / `describe.only` / `xit` / `xdescribe` 禁止** → コミット前に外す (`INVARIANT_NO_TEST_FOCUS`)
-- **設定ファイル (biome.json 等) を問題隠しで編集しない** → コードを直す（品質バーを上げる強化は ADR で許可）
-- **スキル・フックに隠し指示・危険実行パターンを置かない** (`INVARIANT_SKILL_NO_HIDDEN_INSTRUCTIONS` / `INVARIANT_SKILL_NO_EXFIL_EXEC`)
-- **`scripts/audit-baseline.json` を目視レビューなしで更新しない** → 対象パッケージの lifecycle script を読み、要約と理由を PR 本文に書く (`INVARIANT_DEPS_LIFECYCLE_AUDITED`)
-- **GitHub Actions の `uses:` をタグ参照に戻さない** → full commit SHA でピン留めする (`INVARIANT_CI_ACTION_SHA_PINNED`)
-- **Conventional Commits**
-- **Issue は `#番号` 引用禁止** → フル URL か `Issue 番号` で記述
-
-テストの書き方（日本語 BDD スタイル・`describe`/`it` での振る舞い表現・No Mock）は path-scoped rule [`.claude/rules/test-authoring.md`](./.claude/rules/test-authoring.md) を正本とし、テストファイル編集時に自動で読み込まれる。フォーカス除外（`it.only` / `describe.only` / `xit` / `xdescribe`）は上記 `INVARIANT_NO_TEST_FOCUS` が機械強制する。
-
-## スキルの書き方（authoring 規律）
-
-`.claude/skills/<dir>/SKILL.md` は `INVARIANT_SKILL_FRONTMATTER_VALID` で機械検証される。詳細は [`docs/adr/0002-skill-audit-invariants.md`](./docs/adr/0002-skill-audit-invariants.md)。
-
-- frontmatter の `name` はディレクトリ名と一致させる。スキル名は公開 API でありリネームは breaking change。
-- `description` は発火条件の正本。対象・サブコマンド・「いつ使うか」をトリガー語彙として 50 文字以上 1024 文字以下で書く。
-- `allowed-tools` は本体が実際に使う最小セットを宣言する（過剰・過少どちらも `/skill-audit` で直す）。
-- 引数を取るスキルは `argument-hint` を書く。ユーザー専用スキルは `disable-model-invocation: true` を付ける。
-- サードパーティスキルは `.claude/skills/` に入れる前に `/skill-audit pre-install` で検査する。
-
-## ADR
-
-設計判断は `docs/adr/NNNN-タイトル.md` に記録する。テンプレートは [`docs/adr/0000-template.md`](./docs/adr/0000-template.md)。
-
-- ADR は不変。変更は新しい ADR で Supersede する。
-- harness invariant の追加・緩和も ADR で残す。
-
-## ハーネスの拡張
-
-- 新しい invariant を追加するときは `docs/architecture/harness.md` に文章で書き、可能なら `scripts/architecture-harness.ts` の `RULES` / `REPO_CHECKS` に検出ロジックを足す。検出ロジックには `scripts/architecture-harness.test.ts` のテストを添える。
-- 検出が困難な invariant はコードレビューで担保する旨を invariant 説明に書く。
-- invariant の緩和・廃止には ADR が必要。
+- 判断原則: [`docs/architecture/principles.md`](./docs/architecture/principles.md)
+- 機械強制: [`docs/architecture/enforcement-registry.md`](./docs/architecture/enforcement-registry.md)
+- harness: [`docs/architecture/harness.md`](./docs/architecture/harness.md)
+- steering の配置基準: [`docs/architecture/steering.md`](./docs/architecture/steering.md)
