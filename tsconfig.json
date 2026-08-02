@@ -21,5 +21,12 @@
     "types": ["bun"]
   },
   "include": ["scripts/**/*.ts"],
-  "exclude": ["node_modules", "**/dist/**", "**/build/**", "**/coverage/**", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": [
+    "node_modules",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }
