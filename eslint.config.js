@@ -1,6 +1,7 @@
 import sonarjs from "eslint-plugin-sonarjs";
 import tseslint from "typescript-eslint";
 
+// Root typed linting covers repository automation scripts; generated workspaces extend it separately.
 export default tseslint.config(
   {
     ignores: [
