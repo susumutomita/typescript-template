@@ -19,13 +19,22 @@ export default tseslint.config(
   {
     files: ['**/*.{ts,tsx,mts,cts}'],
     rules: {
+      // Existing repositories introduce assertion removal as a visible backlog;
+      // new projects generated from this template can promote it to error at day one.
       '@typescript-eslint/consistent-type-assertions': [
-        'error',
+        'warn',
         { assertionStyle: 'never' },
       ],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
       '@typescript-eslint/ban-ts-comment': 'error',
+      // Stylistic migrations must not hide correctness findings on adoption.
+      '@typescript-eslint/array-type': 'warn',
+      'sonarjs/slow-regex': 'warn',
+      'sonarjs/no-invariant-returns': 'warn',
+      'sonarjs/regex-complexity': 'warn',
+      'sonarjs/no-os-command-from-path': 'warn',
+      'sonarjs/no-alphabetical-sort': 'warn',
       // no-floating-promises uses `void promise` for intentional fire-and-forget.
       // Sonar forbids that construct, so promise-safety takes precedence.
       'sonarjs/void-use': 'off',
