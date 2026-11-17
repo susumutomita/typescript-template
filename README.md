@@ -114,3 +114,9 @@ make ci_local       # CI 完全ミラー（audit_deps + harness 全件 + before-
 ## 開発ガイドライン
 
 [CLAUDE.md](./CLAUDE.md) を参照。完了の品質基準は [docs/architecture/quality-bar.md](./docs/architecture/quality-bar.md)、その根拠は [ADR-0003](./docs/adr/0003-quality-first-no-mvp.md) にある。MVP は完了条件ではない。プロがそのまま使える品質で初回から出すことをデフォルトとする。
+
+## 共通の検証入口
+
+`make verify` は既存の CI 相当チェックを実行し、対象コミット・コマンド・結果・ログを記録します。
+Python 3.10 以上が必要です。`make verify_release` はアプリ固有の受け入れ検証が未設定なら blocked になります。
+[検証契約と既存リポジトリへの適用](docs/architecture/verification.md) を参照してください。

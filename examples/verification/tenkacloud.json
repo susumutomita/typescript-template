@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "features": [
+    {
+      "id": "host-domain",
+      "paths": ["scripts/local-host/", "scripts/lib/", "scripts/quality/"],
+      "checks": ["host-types", "host-tests"],
+      "environment": "Bun and locked dependencies installed using the repository instructions."
+    },
+    {
+      "id": "host-release",
+      "paths": ["apps/", "docker/host/"],
+      "checks": ["host-release"],
+      "environment": "Reviewed deployment-specific acceptance environment."
+    }
+  ],
+  "profiles": {
+    "fast": ["host-types", "host-tests"],
+    "release": ["host-types", "host-tests", "host-release"]
+  },
+  "checks": {
+    "host-types": {
+      "argv": ["bun", "run", "typecheck:host"],
+      "timeout_seconds": 600
+    },
+    "host-tests": {
+      "argv": ["bun", "run", "test:host"],
+      "timeout_seconds": 1800
+    },
+    "host-release": {
+      "blocked_reason": "Pilot covers host domain only, not full repository CI, real hosting or Battle. Register the actual release acceptance commands before release."
+    }
+  }
+}

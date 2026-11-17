@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "features": [
+    {
+      "id": "template-guardrails",
+      "paths": ["scripts/", ".github/", "Makefile"],
+      "checks": ["guardrails"],
+      "environment": "Python 3.10+, Bun and installed locked dependencies; no application exists in the template."
+    }
+  ],
+  "profiles": {
+    "fast": ["guardrails"],
+    "release": ["guardrails", "application-release"]
+  },
+  "checks": {
+    "guardrails": {
+      "argv": ["make", "ci_local"],
+      "timeout_seconds": 600
+    },
+    "application-release": {
+      "blocked_reason": "This template has no runnable application or release scenario. Define the consuming project's real acceptance commands first."
+    }
+  }
+}

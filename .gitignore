@@ -134,3 +134,6 @@ dist
 # Claude harness runtime state (per-developer; not committed)
 # 生成元: /follow-up スキル (詳細: .claude/skills/follow-up/SKILL.md)
 .claude/state/*.jsonl
+
+# Python verification runner
+__pycache__/
