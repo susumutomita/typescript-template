@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "features": [
+    {
+      "id": "simulator-core",
+      "paths": ["internal/", "scripts/", "test/"],
+      "checks": ["native-checks", "e2e"],
+      "environment": "Go, Python and the existing pinned assets; use repository instructions."
+    },
+    {
+      "id": "battle-vm",
+      "paths": ["test/battle/"],
+      "checks": ["battle-vm"],
+      "environment": "QEMU and reviewed VM fixtures; no installation or provisioning performed by this runner."
+    }
+  ],
+  "profiles": {
+    "fast": ["native-checks"],
+    "release": ["native-checks", "e2e", "battle-vm"]
+  },
+  "checks": {
+    "native-checks": {
+      "argv": ["make", "before-commit"],
+      "timeout_seconds": 7200
+    },
+    "e2e": { "argv": ["make", "e2e"], "timeout_seconds": 1800 },
+    "battle-vm": {
+      "blocked_reason": "Pilot adapter only: exact-HEAD Battle VM acceptance is not wired. Configure a reviewed VM command and prerequisites; generic E2E is not VM evidence."
+    }
+  }
+}

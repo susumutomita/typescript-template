@@ -72,6 +72,7 @@ architecture_harness:
 # 既定ゲートに含める (workspace 側のテストは利用プロジェクトで before-commit に足す)。
 harness_test:
 	bun test scripts/
+	python3 -m unittest discover -s scripts/verification -p 'test_*.py'
 
 .PHONY: audit_deps
 # 依存 lifecycle script の攻撃面を scripts/audit-baseline.json に固定し、新規
@@ -105,3 +106,10 @@ ci_local: audit_deps
 .PHONY: dev
 dev:
 	bun run dev
+
+.PHONY: verify verify_release
+verify:
+	python3 scripts/verification/verify.py fast
+
+verify_release:
+	python3 scripts/verification/verify.py release
